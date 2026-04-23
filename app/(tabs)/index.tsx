@@ -1,98 +1,419 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const teal = '#008080';
 
-export default function HomeScreen() {
+const stats = [
+  { title: 'Total Revenue Today', value: '$18,420', change: '+12.4%', icon: 'cash-outline' as const },
+  { title: 'Active Rides', value: '148', change: '+9 live now', icon: 'car-sport-outline' as const },
+  { title: 'Available Drivers', value: '326', change: '81% online', icon: 'people-outline' as const },
+  { title: 'Pending Approvals', value: '17', change: 'Needs review', icon: 'document-text-outline' as const },
+];
+
+const weeklyRides = [86, 112, 98, 134, 162, 149, 184];
+
+export default function AdminDashboardScreen() {
+  const { width } = useWindowDimensions();
+  const isWide = width >= 1100;
+  const chartHeight = 220;
+  const maxValue = Math.max(...weeklyRides);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={[styles.headerRow, isWide ? styles.headerRowWide : null]}>
+          <View>
+            <Text style={styles.eyebrow}>NEXGO ADMIN</Text>
+            <Text style={styles.pageTitle}>Operations Dashboard</Text>
+            <Text style={styles.pageSubtitle}>
+              Central command for rides, drivers, approvals, and marketplace performance.
+            </Text>
+          </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+          <View style={styles.headerBadge}>
+            <Ionicons name="pulse-outline" size={16} color={teal} />
+            <Text style={styles.headerBadgeText}>System healthy</Text>
+          </View>
+        </View>
+
+        <View style={[styles.statsGrid, isWide ? styles.statsGridWide : null]}>
+          {stats.map((stat) => (
+            <View key={stat.title} style={[styles.statCard, isWide ? styles.statCardWide : null]}>
+              <View style={styles.statCardTop}>
+                <View style={styles.statIconWrap}>
+                  <Ionicons name={stat.icon} size={20} color={teal} />
+                </View>
+                <Text style={styles.statChange}>{stat.change}</Text>
+              </View>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statTitle}>{stat.title}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={[styles.analyticsRow, isWide ? styles.analyticsRowWide : null]}>
+          <View style={[styles.chartCard, isWide ? styles.chartCardMain : null]}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.cardEyebrow}>WEEKLY TREND</Text>
+                <Text style={styles.cardTitle}>Completed rides</Text>
+              </View>
+              <View style={styles.cardPill}>
+                <Text style={styles.cardPillText}>Last 7 days</Text>
+              </View>
+            </View>
+
+            <View style={[styles.chartArea, { height: chartHeight }]}>
+              <View style={styles.chartGrid}>
+                {[0, 1, 2, 3].map((line) => (
+                  <View key={line} style={styles.chartGridLine} />
+                ))}
+              </View>
+
+              <View style={styles.chartBarsRow}>
+                {weeklyRides.map((value, index) => {
+                  const barHeight = Math.max((value / maxValue) * (chartHeight - 52), 28);
+                  return (
+                    <View key={`${value}-${index}`} style={styles.chartColumn}>
+                      <Text style={styles.chartValue}>{value}</Text>
+                      <View style={[styles.chartBar, { height: barHeight }]} />
+                      <Text style={styles.chartLabel}>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.chartCard, isWide ? styles.chartCardSide : null]}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.cardEyebrow}>QUICK WATCH</Text>
+                <Text style={styles.cardTitle}>Ops priorities</Text>
+              </View>
+            </View>
+
+            <View style={styles.priorityList}>
+              <PriorityRow title="Driver document reviews" value="17 waiting" tone="warning" />
+              <PriorityRow title="Search-to-match delay" value="2.4 min avg" tone="neutral" />
+              <PriorityRow title="High-demand zones" value="Colombo 03, Kandy" tone="accent" />
+              <PriorityRow title="Escalated support cases" value="6 open" tone="danger" />
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function PriorityRow({
+  title,
+  value,
+  tone,
+}: {
+  title: string;
+  value: string;
+  tone: 'accent' | 'warning' | 'danger' | 'neutral';
+}) {
+  const toneStyle =
+    tone === 'accent'
+      ? styles.priorityDotAccent
+      : tone === 'warning'
+        ? styles.priorityDotWarning
+        : tone === 'danger'
+          ? styles.priorityDotDanger
+          : styles.priorityDotNeutral;
+
+  return (
+    <View style={styles.priorityRow}>
+      <View style={[styles.priorityDot, toneStyle]} />
+      <View style={styles.priorityTextWrap}>
+        <Text style={styles.priorityTitle}>{title}</Text>
+        <Text style={styles.priorityValue}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F4F8F7',
+    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
+  },
+  container: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+  },
+  headerRow: {
+    gap: 14,
+    marginBottom: 18,
+  },
+  headerRowWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  eyebrow: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    marginBottom: 6,
+  },
+  pageTitle: {
+    color: '#102A28',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  pageSubtitle: {
+    color: '#617C79',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    maxWidth: 680,
+  },
+  headerBadge: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerBadgeText: {
+    color: '#123532',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  statsGrid: {
+    gap: 14,
+    marginBottom: 18,
+  },
+  statsGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  statCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  statCardWide: {
+    width: '24%',
+    minWidth: 220,
+  },
+  statCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  statIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statChange: {
+    color: '#157A62',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statValue: {
+    color: '#102A28',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  statTitle: {
+    color: '#617C79',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  analyticsRow: {
+    gap: 16,
+  },
+  analyticsRowWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  chartCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  chartCardMain: {
+    flex: 1.6,
+  },
+  chartCardSide: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 18,
+  },
+  cardEyebrow: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    marginBottom: 3,
+  },
+  cardTitle: {
+    color: '#102A28',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  cardPill: {
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  cardPillText: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  chartArea: {
+    borderRadius: 18,
+    backgroundColor: '#F7FBFA',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    overflow: 'hidden',
+  },
+  chartGrid: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  chartGridLine: {
+    height: 1,
+    backgroundColor: '#DCE9E7',
+  },
+  chartBarsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  chartColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  chartValue: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  chartBar: {
+    width: '100%',
+    maxWidth: 42,
+    borderRadius: 14,
+    backgroundColor: teal,
+    shadowColor: '#008080',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  chartLabel: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  priorityList: {
+    gap: 14,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderRadius: 16,
+    backgroundColor: '#F7FBFA',
+    padding: 12,
+  },
+  priorityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+  },
+  priorityDotAccent: {
+    backgroundColor: teal,
+  },
+  priorityDotWarning: {
+    backgroundColor: '#D6A300',
+  },
+  priorityDotDanger: {
+    backgroundColor: '#C13B3B',
+  },
+  priorityDotNeutral: {
+    backgroundColor: '#7A908D',
+  },
+  priorityTextWrap: {
+    flex: 1,
+  },
+  priorityTitle: {
+    color: '#102A28',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  priorityValue: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
   },
 });
