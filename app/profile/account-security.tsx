@@ -126,6 +126,13 @@ export default function AccountSecurityScreen() {
               Enter your current password, then choose a new secure password for admin access.
             </Text>
 
+            <View style={[styles.noticeCard, { backgroundColor: palette.accentSoft }]}>
+              <Ionicons name="information-circle-outline" size={16} color={palette.accent} />
+              <Text style={[styles.noticeText, { color: palette.textSecondary }]}>
+                Default current password for initial setup: `Admin@123`
+              </Text>
+            </View>
+
             <PasswordField
               label="Current password"
               value={currentPassword}
@@ -317,6 +324,20 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '500',
     marginBottom: 12,
+  },
+  noticeCard: {
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   inputGroup: {
     marginBottom: 10,
