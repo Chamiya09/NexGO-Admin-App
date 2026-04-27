@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image as RNImage,
   Linking,
   Modal,
   Platform,
@@ -309,12 +310,42 @@ function DocumentPreviewModal({
   selectedDocument: SelectedDriverDocument | null;
   onClose: () => void;
 }) {
-  if (!selectedDocument) {
+  const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const driver = selectedDocument?.driver;
+  const document = selectedDocument?.document;
+  const imagePreviewable = isImageDocument(document?.fileUrl);
+  const pdfPreviewable = isPdfDocument(document?.fileUrl);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadPdfPages = async () => {
+      if (!document?.fileUrl || !pdfPreviewable) {
+        setPdfPageUrls([]);
+        setPdfLoading(false);
+        return;
+      }
+
+      setPdfLoading(true);
+      const pageUrls = await discoverCloudinaryPdfPages(document.fileUrl);
+
+      if (!isCancelled) {
+        setPdfPageUrls(pageUrls);
+        setPdfLoading(false);
+      }
+    };
+
+    loadPdfPages();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [document?.fileUrl, pdfPreviewable]);
+
+  if (!selectedDocument || !driver || !document) {
     return null;
   }
-
-  const { driver, document } = selectedDocument;
-  const imagePreviewable = isImageDocument(document.fileUrl);
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -342,6 +373,34 @@ function DocumentPreviewModal({
             {document.fileUrl ? (
               imagePreviewable ? (
                 <Image source={{ uri: document.fileUrl }} style={styles.previewImage} contentFit="contain" />
+              ) : pdfPreviewable ? (
+                pdfLoading ? (
+                  <View style={styles.previewEmptyState}>
+                    <ActivityIndicator size="small" color={teal} />
+                    <Text style={styles.previewEmptyTitle}>Loading PDF pages</Text>
+                    <Text style={styles.previewEmptyText}>Preparing a scrollable preview from Cloudinary.</Text>
+                  </View>
+                ) : pdfPageUrls.length > 0 ? (
+                  <ScrollView
+                    style={styles.pdfPreviewScroll}
+                    contentContainerStyle={styles.pdfPreviewScrollContent}
+                    showsVerticalScrollIndicator>
+                    {pdfPageUrls.map((pageUrl, index) => (
+                      <View key={pageUrl} style={styles.pdfPageCard}>
+                        <Text style={styles.pdfPageLabel}>Page {index + 1}</Text>
+                        <Image source={{ uri: pageUrl }} style={styles.pdfPageImage} contentFit="contain" />
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={styles.previewEmptyState}>
+                    <Ionicons name="document-text-outline" size={34} color={teal} />
+                    <Text style={styles.previewEmptyTitle}>Preview not available</Text>
+                    <Text style={styles.previewEmptyText}>
+                      This Cloudinary PDF could not be converted into scrollable page previews.
+                    </Text>
+                  </View>
+                )
               ) : (
                 <View style={styles.previewEmptyState}>
                   <Ionicons name="document-text-outline" size={34} color={teal} />
@@ -425,6 +484,104 @@ function isImageDocument(fileUrl?: string) {
   }
 
   return /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileUrl);
+}
+
+function isPdfDocument(fileUrl?: string) {
+  if (!fileUrl) {
+    return false;
+  }
+
+  return /\.pdf($|\?)/i.test(fileUrl);
+}
+
+function getCloudinaryPdfParts(fileUrl?: string) {
+  if (!fileUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(fileUrl);
+    if (!parsedUrl.hostname.includes('res.cloudinary.com')) {
+      return null;
+    }
+
+    const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+    const uploadIndex = pathSegments.indexOf('upload');
+
+    if (uploadIndex < 2) {
+      return null;
+    }
+
+    const cloudName = pathSegments[0];
+    const resourceType = pathSegments[1];
+    const versionIndex = pathSegments.findIndex((segment, index) => index > uploadIndex && /^v\d+$/.test(segment));
+
+    if (!cloudName || versionIndex === -1 || versionIndex === pathSegments.length - 1) {
+      return null;
+    }
+
+    const version = pathSegments[versionIndex];
+    const publicIdWithExtension = pathSegments.slice(versionIndex + 1).join('/');
+
+    if (!/\.pdf$/i.test(publicIdWithExtension)) {
+      return null;
+    }
+
+    return {
+      cloudName,
+      resourceType,
+      version,
+      publicId: publicIdWithExtension.replace(/\.pdf$/i, ''),
+      publicIdWithExtension,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getCloudinaryPdfPagePreviewUrl(fileUrl: string, pageNumber: number) {
+  const parts = getCloudinaryPdfParts(fileUrl);
+  if (!parts) {
+    return null;
+  }
+
+  const normalizedPublicId =
+    parts.resourceType === 'raw'
+      ? parts.publicIdWithExtension
+      : parts.publicId;
+
+  return `https://res.cloudinary.com/${parts.cloudName}/image/upload/pg_${pageNumber},f_jpg,q_auto,w_1200/${parts.version}/${normalizedPublicId}.jpg`;
+}
+
+function getRemoteImageSize(uri: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    RNImage.getSize(
+      uri,
+      (width, height) => resolve({ width, height }),
+      reject
+    );
+  });
+}
+
+async function discoverCloudinaryPdfPages(fileUrl: string, maxPages = 12) {
+  const pageUrls: string[] = [];
+
+  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+    const previewUrl = getCloudinaryPdfPagePreviewUrl(fileUrl, pageNumber);
+
+    if (!previewUrl) {
+      break;
+    }
+
+    try {
+      await getRemoteImageSize(previewUrl);
+      pageUrls.push(previewUrl);
+    } catch {
+      break;
+    }
+  }
+
+  return pageUrls;
 }
 
 function formatDocumentType(documentType: DriverDocument['documentType']) {
@@ -850,6 +1007,32 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 320,
+    backgroundColor: '#F7FBFA',
+  },
+  pdfPreviewScroll: {
+    maxHeight: 420,
+  },
+  pdfPreviewScrollContent: {
+    padding: 12,
+    gap: 12,
+  },
+  pdfPageCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 8,
+  },
+  pdfPageLabel: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  pdfPageImage: {
+    width: '100%',
+    height: 360,
     backgroundColor: '#F7FBFA',
   },
   previewEmptyState: {
