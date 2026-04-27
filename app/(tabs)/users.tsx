@@ -193,7 +193,11 @@ export default function AdminUsersScreen() {
                     <View style={styles.reviewTextWrap}>
                       <Text style={styles.reviewName}>{driver.fullName}</Text>
                       <Text style={styles.reviewMeta}>
-                        {formatDriverId(driver.id)} | {formatVehicle(driver.vehicle)} | {formatDriverStatus(driver.status)}
+                        {formatVehicle(driver.vehicle)} | {driver.vehicle?.plateNumber || 'No plate'}
+                      </Text>
+                      <Text style={styles.reviewDetailLine}>
+                        {formatDriverStatus(driver.status)} | {(driver.documents || []).filter((document) => document.status === 'approved').length}/
+                        {(driver.documents || []).length || 3} documents approved
                       </Text>
                     </View>
                     <View style={styles.reviewStatusPill}>
@@ -794,6 +798,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '500',
     flexShrink: 1,
+  },
+  reviewDetailLine: {
+    color: '#7A908D',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+    marginTop: 4,
   },
   reviewStatusPill: {
     alignSelf: 'flex-start',

@@ -36,8 +36,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="users"
         options={{
-          title: 'Users',
-          tabBarIcon: ({ color }) => <Ionicons size={24} name="people-outline" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -48,10 +47,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="support"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <Ionicons size={24} name="settings-outline" color={color} />,
+          title: 'Support',
+          tabBarIcon: ({ color }) => <Ionicons size={24} name="headset-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <Ionicons size={24} name="person-circle-outline" color={color} />,
         }}
       />
     </Tabs>
