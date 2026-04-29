@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -163,10 +164,12 @@ export default function PromotionManagementScreen() {
   const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaigns[0]?.id ?? '');
   const [form, setForm] = useState<PromotionCampaign>(emptyCampaign);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
   const [isSavingPromotion, setIsSavingPromotion] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [visibleCalendarDate, setVisibleCalendarDate] = useState(new Date());
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [modalWarning, setModalWarning] = useState<string | null>(null);
 
   const selectedCampaign = campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0];
 
@@ -177,6 +180,41 @@ export default function PromotionManagementScreen() {
 
     return { activeCount, totalRedemptions, scheduledCount };
   }, [campaigns]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPromotions = async () => {
+      setIsLoadingPromotions(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/promotions`);
+        const data = await parseApiResponse<{ promotions: PromotionCampaign[] }>(response);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (data.promotions?.length) {
+          setCampaigns(data.promotions);
+          setSelectedCampaignId(data.promotions[0].id);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFeedback(error instanceof Error ? error.message : 'Unable to load saved promotions.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPromotions(false);
+        }
+      }
+    };
+
+    void loadPromotions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = (field: keyof PromotionCampaign, value: string | boolean) => {
     setForm((current) => ({
@@ -195,6 +233,7 @@ export default function PromotionManagementScreen() {
     setVisibleCalendarDate(today);
     setIsCalendarVisible(false);
     setFeedback(null);
+    setModalWarning(null);
     setIsModalVisible(true);
   };
 
@@ -203,6 +242,7 @@ export default function PromotionManagementScreen() {
     setVisibleCalendarDate(parseDateValue(campaign.endDate));
     setIsCalendarVisible(false);
     setFeedback(null);
+    setModalWarning(null);
     setIsModalVisible(true);
   };
 
@@ -276,9 +316,17 @@ export default function PromotionManagementScreen() {
 
     setIsSavingPromotion(true);
     setFeedback(null);
+    setModalWarning(null);
 
     try {
-      const uploadedImageUrl = await uploadPromotionImage(form.imageUrl.trim());
+      let uploadedImageUrl = form.imageUrl.trim();
+      try {
+        uploadedImageUrl = await uploadPromotionImage(form.imageUrl.trim());
+      } catch (error) {
+        uploadedImageUrl = '';
+        setModalWarning(error instanceof Error ? error.message : 'Image upload failed. Promotion will be saved without an image.');
+      }
+
       const payload = {
         ...form,
         name: form.name.trim(),
@@ -409,17 +457,24 @@ export default function PromotionManagementScreen() {
 
           <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>CAMPAIGNS</Text>
 
-          <View style={styles.campaignList}>
-            {campaigns.map((campaign) => (
-              <PromotionRow
-                key={campaign.id}
-                campaign={campaign}
-                selected={campaign.id === selectedCampaign?.id}
-                onPress={() => setSelectedCampaignId(campaign.id)}
-                onToggle={() => toggleCampaign(campaign.id)}
-              />
-            ))}
-          </View>
+          {isLoadingPromotions ? (
+            <View style={[styles.loadingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <ActivityIndicator size="small" color={palette.accent} />
+              <Text style={[styles.loadingText, { color: palette.textSecondary }]}>Loading saved promotions...</Text>
+            </View>
+          ) : (
+            <View style={styles.campaignList}>
+              {campaigns.map((campaign) => (
+                <PromotionRow
+                  key={campaign.id}
+                  campaign={campaign}
+                  selected={campaign.id === selectedCampaign?.id}
+                  onPress={() => setSelectedCampaignId(campaign.id)}
+                  onToggle={() => toggleCampaign(campaign.id)}
+                />
+              ))}
+            </View>
+          )}
 
           {selectedCampaign ? (
             <>
@@ -619,6 +674,7 @@ export default function PromotionManagementScreen() {
                 ) : null}
 
                 {feedback ? <Text style={[styles.modalFeedback, { color: palette.danger }]}>{feedback}</Text> : null}
+                {modalWarning ? <Text style={[styles.modalWarning, { color: palette.warning }]}>{modalWarning}</Text> : null}
 
                 <View style={styles.modalActions}>
                   <Pressable style={[styles.secondaryButton, { borderColor: palette.border }]} onPress={closeModal}>
@@ -892,6 +948,19 @@ const styles = StyleSheet.create({
   campaignList: {
     gap: 10,
     marginBottom: 12,
+  },
+  loadingCard: {
+    minHeight: 76,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   campaignRow: {
     borderRadius: 14,
@@ -1293,6 +1362,12 @@ const styles = StyleSheet.create({
   modalFeedback: {
     fontSize: 12,
     fontWeight: '700',
+    marginBottom: 10,
+  },
+  modalWarning: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
     marginBottom: 10,
   },
   modalActions: {
