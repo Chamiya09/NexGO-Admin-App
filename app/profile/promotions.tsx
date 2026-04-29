@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
+import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+
 const palette = {
   background: '#F4F8F7',
   textPrimary: '#123532',
@@ -133,6 +135,7 @@ export default function PromotionManagementScreen() {
   const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaigns[0]?.id ?? '');
   const [form, setForm] = useState<PromotionCampaign>(emptyCampaign);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isSavingPromotion, setIsSavingPromotion] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const selectedCampaign = campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0];
@@ -194,37 +197,82 @@ export default function PromotionManagementScreen() {
     handleChange('imageUrl', result.assets[0].uri);
   };
 
-  const saveCampaign = () => {
+  const uploadPromotionImage = async (imageUri: string) => {
+    if (!imageUri || /^https?:\/\//i.test(imageUri)) {
+      return imageUri;
+    }
+
+    const fileName = imageUri.split('/').pop() || `promotion-${Date.now()}.jpg`;
+    const extension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg';
+
+    const body = new FormData();
+    body.append('file', {
+      uri: imageUri,
+      name: fileName,
+      type: mimeType,
+    } as unknown as Blob);
+
+    const response = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      body,
+    });
+    const data = await parseApiResponse<{ fileUrl: string }>(response);
+    return data.fileUrl;
+  };
+
+  const saveCampaign = async () => {
     if (!form.name.trim() || !form.code.trim() || !form.discountValue.trim()) {
       setFeedback('Please add a campaign name, promo code, and discount value.');
       return;
     }
 
-    const nextCampaign = {
-      ...form,
-      name: form.name.trim(),
-      code: form.code.trim().toUpperCase(),
-      maxDiscount: form.maxDiscount.trim() || (form.discountType === 'Percentage' ? '500' : form.discountValue.trim()),
-      minFare: form.minFare.trim() || '0',
-      startDate: form.startDate.trim() || new Date().toISOString().slice(0, 10),
-      endDate: form.endDate.trim() || 'No end date',
-      usageLimit: form.usageLimit.trim() || 'Unlimited',
-      audience: form.audience.trim() || 'All passengers',
-      status: form.active ? form.status : 'Paused',
-    };
+    setIsSavingPromotion(true);
+    setFeedback(null);
 
-    setCampaigns((current) => {
-      const exists = current.some((campaign) => campaign.id === nextCampaign.id);
-      if (exists) {
-        return current.map((campaign) => (campaign.id === nextCampaign.id ? nextCampaign : campaign));
-      }
+    try {
+      const uploadedImageUrl = await uploadPromotionImage(form.imageUrl.trim());
+      const payload = {
+        ...form,
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
+        imageUrl: uploadedImageUrl,
+        maxDiscount: form.maxDiscount.trim() || (form.discountType === 'Percentage' ? '500' : form.discountValue.trim()),
+        minFare: form.minFare.trim() || '0',
+        startDate: form.startDate.trim() || new Date().toISOString().slice(0, 10),
+        endDate: form.endDate.trim() || 'No end date',
+        usageLimit: form.usageLimit.trim() || 'Unlimited',
+        audience: form.audience.trim() || 'All passengers',
+        status: form.active ? form.status : 'Paused',
+      };
 
-      return [nextCampaign, ...current];
-    });
+      const response = await fetch(`${API_BASE_URL}/promotions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await parseApiResponse<{ promotion: PromotionCampaign; message?: string }>(response);
+      const nextCampaign = data.promotion;
 
-    setSelectedCampaignId(nextCampaign.id);
-    setFeedback('Promotion settings saved.');
-    setIsModalVisible(false);
+      setCampaigns((current) => {
+        const exists = current.some((campaign) => campaign.id === nextCampaign.id);
+        if (exists) {
+          return current.map((campaign) => (campaign.id === nextCampaign.id ? nextCampaign : campaign));
+        }
+
+        return [nextCampaign, ...current];
+      });
+
+      setSelectedCampaignId(nextCampaign.id);
+      setFeedback(data.message || 'Promotion created successfully.');
+      setIsModalVisible(false);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to create promotion.');
+    } finally {
+      setIsSavingPromotion(false);
+    }
   };
 
   const toggleCampaign = (campaignId: string) => {
@@ -467,8 +515,15 @@ export default function PromotionManagementScreen() {
                     <Text style={[styles.secondaryButtonText, { color: palette.textPrimary }]}>Cancel</Text>
                   </Pressable>
 
-                  <Pressable style={[styles.primaryButton, { backgroundColor: palette.accent }]} onPress={saveCampaign}>
-                    <Text style={styles.primaryButtonText}>Save Promotion</Text>
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      { backgroundColor: palette.accent },
+                      isSavingPromotion ? styles.primaryButtonDisabled : null,
+                    ]}
+                    onPress={saveCampaign}
+                    disabled={isSavingPromotion}>
+                    <Text style={styles.primaryButtonText}>{isSavingPromotion ? 'Saving...' : 'Save Promotion'}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1082,6 +1137,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: '#FFFFFF',
