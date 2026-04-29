@@ -729,45 +729,54 @@ function PromotionRow({
         },
       ]}
       onPress={onPress}>
-      <View style={styles.campaignMain}>
-        <View style={[styles.campaignIcon, { backgroundColor: palette.accentSoft }]}>
-          {campaign.imageUrl ? (
-            <Image source={{ uri: campaign.imageUrl }} style={styles.campaignImage} contentFit="cover" />
-          ) : (
-            <Ionicons name="ticket-outline" size={18} color={palette.accent} />
-          )}
+      <View style={styles.campaignTopRow}>
+        <View style={styles.campaignMain}>
+          <View style={[styles.campaignIcon, { backgroundColor: palette.accentSoft }]}>
+            {campaign.imageUrl ? (
+              <Image source={{ uri: campaign.imageUrl }} style={styles.campaignImage} contentFit="cover" />
+            ) : (
+              <Ionicons name="ticket-outline" size={18} color={palette.accent} />
+            )}
+          </View>
+
+          <View style={styles.campaignTextWrap}>
+            <Text style={[styles.campaignName, { color: palette.textPrimary }]} numberOfLines={1}>
+              {campaign.name}
+            </Text>
+            <Text style={[styles.campaignSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
+              {campaign.code} | {campaign.audience}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.campaignTextWrap}>
-          <Text style={[styles.campaignName, { color: palette.textPrimary }]} numberOfLines={1}>
-            {campaign.name}
-          </Text>
-          <Text style={[styles.campaignSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
-            {campaign.code} | {campaign.audience}
-          </Text>
+        <View style={styles.campaignSwitchWrap}>
+          <Switch
+            value={campaign.active}
+            onValueChange={onToggle}
+            trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
+            thumbColor={campaign.active ? palette.accent : '#F8FAFA'}
+          />
         </View>
       </View>
 
-      <View style={styles.campaignRight}>
-        <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
-          <Text style={[styles.statusText, { color: statusColor }]} numberOfLines={1}>{campaign.status}</Text>
+      <View style={styles.rowActionGroup}>
+        <View style={styles.rowStatusWrap}>
+          <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
+            <Text style={[styles.statusText, { color: statusColor }]} numberOfLines={1}>{campaign.status}</Text>
+          </View>
         </View>
-        <Switch
-          value={campaign.active}
-          onValueChange={onToggle}
-          trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
-          thumbColor={campaign.active ? palette.accent : '#F8FAFA'}
-        />
-        <View style={styles.rowActionGroup}>
+        <View style={styles.rowButtons}>
           <Pressable
-            style={[styles.rowIconButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}
+            style={[styles.rowActionButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}
             onPress={onEdit}>
             <Ionicons name="create-outline" size={15} color={palette.accent} />
+            <Text style={[styles.rowEditText, { color: palette.accent }]}>Edit</Text>
           </Pressable>
           <Pressable
-            style={[styles.rowIconButton, { backgroundColor: '#FFF4F4', borderColor: '#F1D6D6' }]}
+            style={[styles.rowActionButton, { backgroundColor: '#FFF4F4', borderColor: '#F1D6D6' }]}
             onPress={onDelete}>
             <Ionicons name="trash-outline" size={15} color={palette.danger} />
+            <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Delete</Text>
           </Pressable>
         </View>
       </View>
@@ -997,11 +1006,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
+    gap: 10,
+  },
+  campaignTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    minHeight: 96,
   },
   campaignMain: {
     flex: 1,
@@ -1036,23 +1047,54 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 17,
   },
-  campaignRight: {
-    width: 96,
+  campaignSwitchWrap: {
+    minWidth: 54,
     alignItems: 'flex-end',
-    gap: 6,
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  rowStatusWrap: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
     flexShrink: 0,
   },
   rowActionGroup: {
     flexDirection: 'row',
-    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EAF1EF',
+    flexWrap: 'wrap',
   },
-  rowIconButton: {
-    width: 32,
-    height: 30,
+  rowButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    flexShrink: 0,
+  },
+  rowActionButton: {
+    minWidth: 84,
+    minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
+  },
+  rowEditText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rowDeleteText: {
+    fontSize: 12,
+    fontWeight: '900',
   },
   statusPill: {
     borderRadius: 999,
