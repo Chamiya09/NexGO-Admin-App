@@ -250,6 +250,9 @@ export default function PromotionManagementScreen() {
       body,
     });
     const data = await parseApiResponse<{ fileUrl: string }>(response);
+    if (!data.fileUrl) {
+      throw new Error('Image upload failed. No Cloudinary URL returned.');
+    }
     return data.fileUrl;
   };
 
@@ -265,11 +268,14 @@ export default function PromotionManagementScreen() {
 
     try {
       let uploadedImageUrl = form.imageUrl.trim();
-      try {
-        uploadedImageUrl = await uploadPromotionImage(form.imageUrl.trim());
-      } catch (error) {
-        uploadedImageUrl = '';
-        setModalWarning(error instanceof Error ? error.message : 'Image upload failed. Promotion will be saved without an image.');
+      if (uploadedImageUrl) {
+        try {
+          uploadedImageUrl = await uploadPromotionImage(uploadedImageUrl);
+        } catch (error) {
+          setModalWarning(error instanceof Error ? error.message : 'Image upload failed. Please try again.');
+          setIsSavingPromotion(false);
+          return;
+        }
       }
 
       const payload = {
