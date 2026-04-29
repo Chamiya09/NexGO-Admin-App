@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -77,60 +77,6 @@ const emptyCampaign: PromotionCampaign = {
   imageUrl: '',
 };
 
-const initialCampaigns: PromotionCampaign[] = [
-  {
-    id: 'welcome-25',
-    name: 'Welcome Ride Saver',
-    code: 'WELCOME25',
-    discountType: 'Percentage',
-    discountValue: '25',
-    maxDiscount: '500',
-    minFare: '1200',
-    startDate: '2026-04-01',
-    endDate: '2026-05-15',
-    usageLimit: '1000',
-    usedCount: 428,
-    status: 'Active',
-    audience: 'New passengers',
-    active: true,
-    imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&q=80',
-  },
-  {
-    id: 'weekend-300',
-    name: 'Weekend City Drop',
-    code: 'WEEKEND300',
-    discountType: 'Fixed',
-    discountValue: '300',
-    maxDiscount: '300',
-    minFare: '1500',
-    startDate: '2026-05-03',
-    endDate: '2026-06-01',
-    usageLimit: '750',
-    usedCount: 0,
-    status: 'Scheduled',
-    audience: 'Colombo riders',
-    active: true,
-    imageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600&q=80',
-  },
-  {
-    id: 'loyal-15',
-    name: 'Loyal Rider Boost',
-    code: 'LOYAL15',
-    discountType: 'Percentage',
-    discountValue: '15',
-    maxDiscount: '350',
-    minFare: '1000',
-    startDate: '2026-03-10',
-    endDate: '2026-04-30',
-    usageLimit: '500',
-    usedCount: 312,
-    status: 'Paused',
-    audience: 'Repeat passengers',
-    active: false,
-    imageUrl: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=600&q=80',
-  },
-];
-
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -160,8 +106,8 @@ const getCalendarDates = (visibleDate: Date) => {
 };
 
 export default function PromotionManagementScreen() {
-  const [campaigns, setCampaigns] = useState(initialCampaigns);
-  const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaigns[0]?.id ?? '');
+  const [campaigns, setCampaigns] = useState<PromotionCampaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [form, setForm] = useState<PromotionCampaign>(emptyCampaign);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
@@ -181,40 +127,31 @@ export default function PromotionManagementScreen() {
     return { activeCount, totalRedemptions, scheduledCount };
   }, [campaigns]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadPromotions = useCallback(async () => {
+    setIsLoadingPromotions(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/promotions`);
+      const data = await parseApiResponse<{ promotions: PromotionCampaign[] }>(response);
 
-    const loadPromotions = async () => {
-      setIsLoadingPromotions(true);
-      try {
-        const response = await fetch(`${API_BASE_URL}/promotions`);
-        const data = await parseApiResponse<{ promotions: PromotionCampaign[] }>(response);
-
-        if (cancelled) {
-          return;
+      const savedPromotions = data.promotions ?? [];
+      setCampaigns(savedPromotions);
+      setSelectedCampaignId((current) => {
+        if (savedPromotions.some((promotion) => promotion.id === current)) {
+          return current;
         }
 
-        if (data.promotions?.length) {
-          setCampaigns(data.promotions);
-          setSelectedCampaignId(data.promotions[0].id);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setFeedback(error instanceof Error ? error.message : 'Unable to load saved promotions.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingPromotions(false);
-        }
-      }
-    };
-
-    void loadPromotions();
-
-    return () => {
-      cancelled = true;
-    };
+        return savedPromotions[0]?.id ?? '';
+      });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to load saved promotions.');
+    } finally {
+      setIsLoadingPromotions(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadPromotions();
+  }, [loadPromotions]);
 
   const handleChange = (field: keyof PromotionCampaign, value: string | boolean) => {
     setForm((current) => ({
@@ -363,6 +300,7 @@ export default function PromotionManagementScreen() {
       setSelectedCampaignId(nextCampaign.id);
       setFeedback(data.message || 'Promotion created successfully.');
       setIsModalVisible(false);
+      void loadPromotions();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to create promotion.');
     } finally {
@@ -461,6 +399,16 @@ export default function PromotionManagementScreen() {
             <View style={[styles.loadingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
               <ActivityIndicator size="small" color={palette.accent} />
               <Text style={[styles.loadingText, { color: palette.textSecondary }]}>Loading saved promotions...</Text>
+            </View>
+          ) : campaigns.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft }]}>
+                <Ionicons name="pricetags-outline" size={24} color={palette.accent} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: palette.textPrimary }]}>No promotions saved</Text>
+              <Text style={[styles.emptyText, { color: palette.textSecondary }]}>
+                Use the Add button above to create your first promotion and save it to the database.
+              </Text>
             </View>
           ) : (
             <View style={styles.campaignList}>
@@ -961,6 +909,33 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  emptyCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    padding: 18,
+    gap: 8,
+    marginBottom: 12,
+  },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   campaignRow: {
     borderRadius: 14,
