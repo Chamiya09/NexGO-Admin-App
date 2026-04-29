@@ -48,14 +48,8 @@ type PromotionCampaign = {
   code: string;
   discountType: DiscountType;
   discountValue: string;
-  maxDiscount: string;
-  minFare: string;
-  startDate: string;
   endDate: string;
-  usageLimit: string;
-  usedCount: number;
   status: CampaignStatus;
-  audience: string;
   active: boolean;
   imageUrl: string;
 };
@@ -66,14 +60,8 @@ const emptyCampaign: PromotionCampaign = {
   code: '',
   discountType: 'Percentage',
   discountValue: '',
-  maxDiscount: '',
-  minFare: '',
-  startDate: '',
   endDate: '',
-  usageLimit: '',
-  usedCount: 0,
   status: 'Active',
-  audience: 'All passengers',
   active: true,
   imageUrl: '',
 };
@@ -122,10 +110,9 @@ export default function PromotionManagementScreen() {
 
   const totals = useMemo(() => {
     const activeCount = campaigns.filter((campaign) => campaign.status === 'Active' && campaign.active).length;
-    const totalRedemptions = campaigns.reduce((sum, campaign) => sum + campaign.usedCount, 0);
     const scheduledCount = campaigns.filter((campaign) => campaign.status === 'Scheduled').length;
 
-    return { activeCount, totalRedemptions, scheduledCount };
+    return { activeCount, scheduledCount, totalCount: campaigns.length };
   }, [campaigns]);
 
   const loadPromotions = useCallback(async () => {
@@ -266,17 +253,12 @@ export default function PromotionManagementScreen() {
       }
 
       const payload = {
-        ...form,
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
+        discountType: form.discountType,
+        discountValue: form.discountValue.trim(),
         imageUrl: uploadedImageUrl,
-        maxDiscount: form.maxDiscount.trim() || (form.discountType === 'Percentage' ? '500' : form.discountValue.trim()),
-        minFare: form.minFare.trim() || '0',
-        startDate: form.startDate.trim() || new Date().toISOString().slice(0, 10),
-        endDate: form.endDate.trim() || 'No end date',
-        usageLimit: form.usageLimit.trim() || 'Unlimited',
-        audience: form.audience.trim() || 'All passengers',
-        status: form.active ? form.status : 'Paused',
+        endDate: form.endDate.trim(),
       };
 
       const isExistingPromotion = campaigns.some((campaign) => campaign.id === form.id);
@@ -404,7 +386,7 @@ export default function PromotionManagementScreen() {
           <View style={styles.metricsRow}>
             <MetricCard label="Active" value={String(totals.activeCount)} icon="flash-outline" />
             <MetricCard label="Scheduled" value={String(totals.scheduledCount)} icon="calendar-outline" />
-            <MetricCard label="Redeemed" value={totals.totalRedemptions.toLocaleString()} icon="ticket-outline" />
+            <MetricCard label="Total" value={String(totals.totalCount)} icon="ticket-outline" />
           </View>
 
           <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>PROMOTION SETUP</Text>
@@ -419,7 +401,7 @@ export default function PromotionManagementScreen() {
                 <View style={[styles.detailsHeaderText, styles.setupTextWrap]}>
                   <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>Create promotion record</Text>
                   <Text style={[styles.detailsHint, styles.setupHint, { color: palette.textSecondary }]}>
-                    Add promo codes, discount limits, dates, and audience rules before publishing a campaign.
+                    Add the promotion details passengers will use during booking.
                   </Text>
                 </View>
               </View>
@@ -464,47 +446,6 @@ export default function PromotionManagementScreen() {
             </View>
           )}
 
-          {selectedCampaign ? (
-            <>
-              <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>DISCOUNT RULES</Text>
-
-              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                <View style={styles.detailsHeader}>
-                  <View style={styles.detailsHeaderText}>
-                    <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>{selectedCampaign.name}</Text>
-                    <Text style={[styles.detailsHint, { color: palette.textSecondary }]}>
-                      Current promo rules applied when passengers use {selectedCampaign.code}.
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    style={[styles.compactEditButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}
-                    onPress={() => openEditModal(selectedCampaign)}>
-                    <Ionicons name="create-outline" size={14} color={palette.accent} />
-                    <Text style={[styles.compactEditButtonText, { color: palette.accent }]}>Edit</Text>
-                  </Pressable>
-                </View>
-
-                <View style={[styles.inlineDivider, { backgroundColor: palette.border }]} />
-                <DetailRow label="Promo code" value={selectedCampaign.code} />
-                <View style={[styles.inlineDivider, { backgroundColor: palette.border }]} />
-                <DetailRow
-                  label="Discount"
-                  value={
-                    selectedCampaign.discountType === 'Percentage'
-                      ? `${selectedCampaign.discountValue}% up to LKR ${selectedCampaign.maxDiscount}`
-                      : `LKR ${selectedCampaign.discountValue}`
-                  }
-                />
-                <View style={[styles.inlineDivider, { backgroundColor: palette.border }]} />
-                <DetailRow label="Minimum fare" value={`LKR ${selectedCampaign.minFare}`} />
-                <View style={[styles.inlineDivider, { backgroundColor: palette.border }]} />
-                <DetailRow label="Campaign dates" value={`${selectedCampaign.startDate} to ${selectedCampaign.endDate}`} />
-                <View style={[styles.inlineDivider, { backgroundColor: palette.border }]} />
-                <DetailRow label="Usage" value={`${selectedCampaign.usedCount}/${selectedCampaign.usageLimit} redemptions`} />
-              </View>
-            </>
-          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -744,7 +685,7 @@ function PromotionRow({
               {campaign.name}
             </Text>
             <Text style={[styles.campaignSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
-              {campaign.code} | {campaign.audience}
+              {campaign.code} | {campaign.discountType === 'Percentage' ? `${campaign.discountValue}%` : `LKR ${campaign.discountValue}`}
             </Text>
           </View>
         </View>
@@ -781,15 +722,6 @@ function PromotionRow({
         </View>
       </View>
     </Pressable>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>{label}</Text>
-      <Text style={[styles.infoValue, { color: palette.textPrimary }]} numberOfLines={2}>{value || 'Not set'}</Text>
-    </View>
   );
 }
 
@@ -1174,45 +1106,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
-  },
-  compactEditButton: {
-    width: 72,
-    minHeight: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  compactEditButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  inlineDivider: {
-    height: 1,
-    marginVertical: 10,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 16,
-    minHeight: 24,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 18,
-    flexShrink: 0,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 19,
-    flex: 1,
-    textAlign: 'right',
   },
   modalOverlay: {
     flex: 1,
