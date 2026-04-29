@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 const palette = {
   background: '#F4F8F7',
@@ -51,6 +53,7 @@ type PromotionCampaign = {
   status: CampaignStatus;
   audience: string;
   active: boolean;
+  imageUrl: string;
 };
 
 const emptyCampaign: PromotionCampaign = {
@@ -68,6 +71,7 @@ const emptyCampaign: PromotionCampaign = {
   status: 'Active',
   audience: 'All passengers',
   active: true,
+  imageUrl: '',
 };
 
 const initialCampaigns: PromotionCampaign[] = [
@@ -86,6 +90,7 @@ const initialCampaigns: PromotionCampaign[] = [
     status: 'Active',
     audience: 'New passengers',
     active: true,
+    imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&q=80',
   },
   {
     id: 'weekend-300',
@@ -102,6 +107,7 @@ const initialCampaigns: PromotionCampaign[] = [
     status: 'Scheduled',
     audience: 'Colombo riders',
     active: true,
+    imageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600&q=80',
   },
   {
     id: 'loyal-15',
@@ -118,6 +124,7 @@ const initialCampaigns: PromotionCampaign[] = [
     status: 'Paused',
     audience: 'Repeat passengers',
     active: false,
+    imageUrl: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=600&q=80',
   },
 ];
 
@@ -162,6 +169,29 @@ export default function PromotionManagementScreen() {
 
   const closeModal = () => {
     setIsModalVisible(false);
+  };
+
+  const pickPromotionImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      setFeedback('Gallery permission is required to select a promotion image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    setFeedback(null);
+    handleChange('imageUrl', result.assets[0].uri);
   };
 
   const saveCampaign = () => {
@@ -365,6 +395,23 @@ export default function PromotionManagementScreen() {
                   onChangeText={(value) => handleChange('code', value.toUpperCase())}
                   autoCapitalize="characters"
                 />
+                <View style={[styles.imagePreviewCard, { backgroundColor: palette.input, borderColor: palette.border }]}>
+                  {form.imageUrl.trim() ? (
+                    <Image source={{ uri: form.imageUrl.trim() }} style={styles.imagePreview} contentFit="cover" />
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="image-outline" size={24} color={palette.accent} />
+                      <Text style={[styles.imagePlaceholderText, { color: palette.textSecondary }]}>Promotion image preview</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Pressable style={[styles.imageSelectButton, { borderColor: palette.border }]} onPress={pickPromotionImage}>
+                  <Ionicons name="images-outline" size={18} color={palette.accent} />
+                  <Text style={[styles.imageSelectButtonText, { color: palette.accent }]}>
+                    {form.imageUrl ? 'Change gallery image' : 'Select image from gallery'}
+                  </Text>
+                </Pressable>
 
                 <Text style={[styles.inputLabel, { color: palette.textSecondary }]}>Discount type</Text>
                 <View style={styles.segmentedRow}>
@@ -498,7 +545,11 @@ function PromotionRow({
       onPress={onPress}>
       <View style={styles.campaignMain}>
         <View style={[styles.campaignIcon, { backgroundColor: palette.accentSoft }]}>
-          <Ionicons name="ticket-outline" size={18} color={palette.accent} />
+          {campaign.imageUrl ? (
+            <Image source={{ uri: campaign.imageUrl }} style={styles.campaignImage} contentFit="cover" />
+          ) : (
+            <Ionicons name="ticket-outline" size={18} color={palette.accent} />
+          )}
         </View>
 
         <View style={styles.campaignTextWrap}>
@@ -541,12 +592,14 @@ function FormInput({
   onChangeText,
   keyboardType = 'default',
   autoCapitalize = 'none',
+  placeholder,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   keyboardType?: 'default' | 'numeric';
   autoCapitalize?: 'none' | 'characters';
+  placeholder?: string;
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -557,6 +610,7 @@ function FormInput({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
+        placeholder={placeholder}
         placeholderTextColor={palette.textSecondary}
         style={[
           styles.input,
@@ -724,6 +778,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  campaignImage: {
+    width: '100%',
+    height: '100%',
   },
   campaignTextWrap: {
     flex: 1,
@@ -923,6 +982,41 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     fontWeight: '600',
+  },
+  imagePreviewCard: {
+    height: 118,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  imagePlaceholderText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  imageSelectButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  imageSelectButtonText: {
+    fontSize: 13,
+    fontWeight: '900',
   },
   segmentedRow: {
     flexDirection: 'row',
