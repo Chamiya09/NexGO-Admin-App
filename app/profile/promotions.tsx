@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -278,8 +279,9 @@ export default function PromotionManagementScreen() {
         status: form.active ? form.status : 'Paused',
       };
 
-      const response = await fetch(`${API_BASE_URL}/promotions`, {
-        method: 'POST',
+      const isExistingPromotion = campaigns.some((campaign) => campaign.id === form.id);
+      const response = await fetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
+        method: isExistingPromotion ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -298,7 +300,7 @@ export default function PromotionManagementScreen() {
       });
 
       setSelectedCampaignId(nextCampaign.id);
-      setFeedback(data.message || 'Promotion created successfully.');
+      setFeedback(data.message || (isExistingPromotion ? 'Promotion updated successfully.' : 'Promotion created successfully.'));
       setIsModalVisible(false);
       void loadPromotions();
     } catch (error) {
@@ -306,6 +308,42 @@ export default function PromotionManagementScreen() {
     } finally {
       setIsSavingPromotion(false);
     }
+  };
+
+  const deleteCampaign = async (campaign: PromotionCampaign) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
+        method: 'DELETE',
+      });
+      const data = await parseApiResponse<{ message?: string; id: string }>(response);
+
+      setCampaigns((current) => current.filter((item) => item.id !== campaign.id));
+      setSelectedCampaignId((current) => {
+        if (current !== campaign.id) {
+          return current;
+        }
+
+        const nextCampaign = campaigns.find((item) => item.id !== campaign.id);
+        return nextCampaign?.id ?? '';
+      });
+      setFeedback(data.message || 'Promotion deleted successfully.');
+      void loadPromotions();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to delete promotion.');
+    }
+  };
+
+  const confirmDeleteCampaign = (campaign: PromotionCampaign) => {
+    Alert.alert('Delete promotion', `Do you want to delete ${campaign.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void deleteCampaign(campaign);
+        },
+      },
+    ]);
   };
 
   const toggleCampaign = (campaignId: string) => {
@@ -419,6 +457,8 @@ export default function PromotionManagementScreen() {
                   selected={campaign.id === selectedCampaign?.id}
                   onPress={() => setSelectedCampaignId(campaign.id)}
                   onToggle={() => toggleCampaign(campaign.id)}
+                  onEdit={() => openEditModal(campaign)}
+                  onDelete={() => confirmDeleteCampaign(campaign)}
                 />
               ))}
             </View>
@@ -664,11 +704,15 @@ function PromotionRow({
   selected,
   onPress,
   onToggle,
+  onEdit,
+  onDelete,
 }: {
   campaign: PromotionCampaign;
   selected: boolean;
   onPress: () => void;
   onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const statusColor =
     campaign.status === 'Active' ? palette.success : campaign.status === 'Scheduled' ? palette.warning : palette.textSecondary;
@@ -714,6 +758,18 @@ function PromotionRow({
           trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
           thumbColor={campaign.active ? palette.accent : '#F8FAFA'}
         />
+        <View style={styles.rowActionGroup}>
+          <Pressable
+            style={[styles.rowIconButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}
+            onPress={onEdit}>
+            <Ionicons name="create-outline" size={15} color={palette.accent} />
+          </Pressable>
+          <Pressable
+            style={[styles.rowIconButton, { backgroundColor: '#FFF4F4', borderColor: '#F1D6D6' }]}
+            onPress={onDelete}>
+            <Ionicons name="trash-outline" size={15} color={palette.danger} />
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
@@ -945,7 +1001,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    minHeight: 76,
+    minHeight: 96,
   },
   campaignMain: {
     flex: 1,
@@ -981,10 +1037,22 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   campaignRight: {
-    width: 92,
+    width: 96,
     alignItems: 'flex-end',
     gap: 6,
     flexShrink: 0,
+  },
+  rowActionGroup: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  rowIconButton: {
+    width: 32,
+    height: 30,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusPill: {
     borderRadius: 999,
