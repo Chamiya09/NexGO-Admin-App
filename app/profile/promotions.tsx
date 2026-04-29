@@ -130,12 +130,42 @@ const initialCampaigns: PromotionCampaign[] = [
   },
 ];
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const formatDateValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateValue = (value: string) => {
+  const parsed = value ? new Date(`${value}T00:00:00`) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const getCalendarDates = (visibleDate: Date) => {
+  const year = visibleDate.getFullYear();
+  const month = visibleDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const calendarStart = new Date(year, month, 1 - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(calendarStart);
+    date.setDate(calendarStart.getDate() + index);
+    return date;
+  });
+};
+
 export default function PromotionManagementScreen() {
   const [campaigns, setCampaigns] = useState(initialCampaigns);
   const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaigns[0]?.id ?? '');
   const [form, setForm] = useState<PromotionCampaign>(emptyCampaign);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isSavingPromotion, setIsSavingPromotion] = useState(false);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+  const [visibleCalendarDate, setVisibleCalendarDate] = useState(new Date());
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const selectedCampaign = campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0];
@@ -156,22 +186,39 @@ export default function PromotionManagementScreen() {
   };
 
   const openCreateModal = () => {
+    const today = new Date();
     setForm({
       ...emptyCampaign,
       id: `promo-${Date.now()}`,
+      endDate: formatDateValue(today),
     });
+    setVisibleCalendarDate(today);
+    setIsCalendarVisible(false);
     setFeedback(null);
     setIsModalVisible(true);
   };
 
   const openEditModal = (campaign: PromotionCampaign) => {
     setForm(campaign);
+    setVisibleCalendarDate(parseDateValue(campaign.endDate));
+    setIsCalendarVisible(false);
     setFeedback(null);
     setIsModalVisible(true);
   };
 
   const closeModal = () => {
+    setIsCalendarVisible(false);
     setIsModalVisible(false);
+  };
+
+  const moveCalendarMonth = (offset: number) => {
+    setVisibleCalendarDate((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  };
+
+  const selectEndDate = (date: Date) => {
+    handleChange('endDate', formatDateValue(date));
+    setVisibleCalendarDate(date);
+    setIsCalendarVisible(false);
   };
 
   const pickPromotionImage = async () => {
@@ -501,12 +548,75 @@ export default function PromotionManagementScreen() {
                   keyboardType="numeric"
                   placeholder={form.discountType === 'Percentage' ? '25' : '300'}
                 />
-                <FormInput
-                  label="End date"
-                  value={form.endDate}
-                  onChangeText={(value) => handleChange('endDate', value)}
-                  placeholder="2026-05-30"
-                />
+                <Text style={[styles.inputLabel, { color: palette.textSecondary }]}>End date</Text>
+                <Pressable
+                  style={[styles.dateSelectButton, { backgroundColor: palette.input, borderColor: palette.border }]}
+                  onPress={() => setIsCalendarVisible((current) => !current)}>
+                  <View style={styles.dateSelectLeft}>
+                    <Ionicons name="calendar-outline" size={18} color={palette.accent} />
+                    <Text style={[styles.dateSelectText, { color: form.endDate ? palette.textPrimary : palette.textSecondary }]}>
+                      {form.endDate || 'Select end date'}
+                    </Text>
+                  </View>
+                  <Ionicons name={isCalendarVisible ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textSecondary} />
+                </Pressable>
+
+                {isCalendarVisible ? (
+                  <View style={[styles.calendarCard, { backgroundColor: palette.input, borderColor: palette.border }]}>
+                    <View style={styles.calendarHeader}>
+                      <Pressable style={styles.calendarNavButton} onPress={() => moveCalendarMonth(-1)}>
+                        <Ionicons name="chevron-back" size={18} color={palette.textPrimary} />
+                      </Pressable>
+                      <Text style={[styles.calendarTitle, { color: palette.textPrimary }]}>
+                        {MONTH_NAMES[visibleCalendarDate.getMonth()]} {visibleCalendarDate.getFullYear()}
+                      </Text>
+                      <Pressable style={styles.calendarNavButton} onPress={() => moveCalendarMonth(1)}>
+                        <Ionicons name="chevron-forward" size={18} color={palette.textPrimary} />
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.weekRow}>
+                      {WEEK_DAYS.map((day) => (
+                        <Text key={day} style={[styles.weekDayText, { color: palette.textSecondary }]}>
+                          {day}
+                        </Text>
+                      ))}
+                    </View>
+
+                    <View style={styles.calendarGrid}>
+                      {getCalendarDates(visibleCalendarDate).map((date) => {
+                        const value = formatDateValue(date);
+                        const isCurrentMonth = date.getMonth() === visibleCalendarDate.getMonth();
+                        const isSelected = value === form.endDate;
+
+                        return (
+                          <Pressable
+                            key={value}
+                            style={[
+                              styles.calendarDayButton,
+                              isSelected ? { backgroundColor: palette.accent } : null,
+                            ]}
+                            onPress={() => selectEndDate(date)}>
+                            <Text
+                              style={[
+                                styles.calendarDayText,
+                                {
+                                  color: isSelected
+                                    ? '#FFFFFF'
+                                    : isCurrentMonth
+                                      ? palette.textPrimary
+                                      : palette.textSecondary,
+                                  opacity: isCurrentMonth || isSelected ? 1 : 0.45,
+                                },
+                              ]}>
+                              {date.getDate()}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
 
                 {feedback ? <Text style={[styles.modalFeedback, { color: palette.danger }]}>{feedback}</Text> : null}
 
@@ -1064,6 +1174,77 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  dateSelectButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+  },
+  dateSelectLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  dateSelectText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  calendarCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+  },
+  calendarHeader: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calendarNavButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  weekDayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDayButton: {
+    width: '14.2857%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayText: {
+    fontSize: 12,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   segmentedRow: {
     flexDirection: 'row',
