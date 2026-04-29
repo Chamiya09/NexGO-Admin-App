@@ -18,7 +18,7 @@ type ProfileSection = {
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
   badge?: string;
-  route?: '/profile/admin-details' | '/profile/account-security' | '/users';
+  route?: '/profile/admin-details' | '/profile/promotions' | '/profile/account-security' | '/users';
 };
 
 const palette = {
@@ -51,6 +51,7 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     title: 'Promotion & Discount Management',
     subtitle: 'Manage offers, promo rules, and platform discount campaigns',
     icon: 'pricetags-outline',
+    route: '/profile/promotions',
   },
   {
     title: 'User Management',
