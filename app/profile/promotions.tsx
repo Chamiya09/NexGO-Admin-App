@@ -204,6 +204,13 @@ export default function PromotionManagementScreen() {
       ...form,
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
+      discountType: 'Percentage' as const,
+      maxDiscount: form.maxDiscount.trim() || '500',
+      minFare: form.minFare.trim() || '0',
+      startDate: form.startDate.trim() || new Date().toISOString().slice(0, 10),
+      endDate: form.endDate.trim() || 'No end date',
+      usageLimit: form.usageLimit.trim() || 'Unlimited',
+      audience: form.audience.trim() || 'All passengers',
       status: form.active ? form.status : 'Paused',
     };
 
@@ -379,7 +386,7 @@ export default function PromotionManagementScreen() {
                       {campaigns.some((campaign) => campaign.id === form.id) ? 'Update Promotion' : 'Create Promotion'}
                     </Text>
                     <Text style={[styles.modalSubtitle, { color: palette.textSecondary }]}>
-                      Configure passenger discount rules and campaign availability.
+                      Add the basic details passengers will see when using this offer.
                     </Text>
                   </View>
 
@@ -413,79 +420,22 @@ export default function PromotionManagementScreen() {
                   </Text>
                 </Pressable>
 
-                <Text style={[styles.inputLabel, { color: palette.textSecondary }]}>Discount type</Text>
-                <View style={styles.segmentedRow}>
-                  {(['Percentage', 'Fixed'] as DiscountType[]).map((type) => (
-                    <Pressable
-                      key={type}
-                      style={[
-                        styles.segmentButton,
-                        {
-                          backgroundColor: form.discountType === type ? palette.accent : palette.input,
-                          borderColor: form.discountType === type ? palette.accent : palette.border,
-                        },
-                      ]}
-                      onPress={() => handleChange('discountType', type)}>
-                      <Text
-                        style={[
-                          styles.segmentText,
-                          { color: form.discountType === type ? '#FFFFFF' : palette.textPrimary },
-                        ]}>
-                        {type}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View style={styles.twoColumnRow}>
-                  <FormInput
-                    label={form.discountType === 'Percentage' ? 'Discount %' : 'Discount LKR'}
-                    value={form.discountValue}
-                    onChangeText={(value) => handleChange('discountValue', value)}
-                    keyboardType="numeric"
-                  />
-                  <FormInput
-                    label="Max discount"
-                    value={form.maxDiscount}
-                    onChangeText={(value) => handleChange('maxDiscount', value)}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.twoColumnRow}>
-                  <FormInput
-                    label="Minimum fare"
-                    value={form.minFare}
-                    onChangeText={(value) => handleChange('minFare', value)}
-                    keyboardType="numeric"
-                  />
-                  <FormInput
-                    label="Usage limit"
-                    value={form.usageLimit}
-                    onChangeText={(value) => handleChange('usageLimit', value)}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.twoColumnRow}>
-                  <FormInput label="Start date" value={form.startDate} onChangeText={(value) => handleChange('startDate', value)} />
-                  <FormInput label="End date" value={form.endDate} onChangeText={(value) => handleChange('endDate', value)} />
-                </View>
-
-                <FormInput label="Audience" value={form.audience} onChangeText={(value) => handleChange('audience', value)} />
-
-                <View style={[styles.switchRow, { backgroundColor: palette.input, borderColor: palette.border }]}>
-                  <View style={styles.switchTextWrap}>
-                    <Text style={[styles.switchTitle, { color: palette.textPrimary }]}>Campaign active</Text>
-                    <Text style={[styles.switchHint, { color: palette.textSecondary }]}>Disabled campaigns remain saved but cannot be redeemed.</Text>
-                  </View>
-                  <Switch
-                    value={form.active}
-                    onValueChange={(value) => handleChange('active', value)}
-                    trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
-                    thumbColor={form.active ? palette.accent : '#F8FAFA'}
-                  />
-                </View>
+                <FormInput
+                  label="Discount percentage"
+                  value={form.discountValue}
+                  onChangeText={(value) => {
+                    handleChange('discountType', 'Percentage');
+                    handleChange('discountValue', value.replace(/\D/g, '').slice(0, 3));
+                  }}
+                  keyboardType="numeric"
+                  placeholder="25"
+                />
+                <FormInput
+                  label="End date"
+                  value={form.endDate}
+                  onChangeText={(value) => handleChange('endDate', value)}
+                  placeholder="2026-05-30"
+                />
 
                 {feedback ? <Text style={[styles.modalFeedback, { color: palette.danger }]}>{feedback}</Text> : null}
 
