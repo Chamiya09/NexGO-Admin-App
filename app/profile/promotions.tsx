@@ -54,6 +54,14 @@ type PromotionCampaign = {
   imageUrl: string;
 };
 
+type PromotionApiCampaign = PromotionCampaign & {
+  image?: string;
+  imageURL?: string;
+  fileUrl?: string;
+  secureUrl?: string;
+  url?: string;
+};
+
 const emptyCampaign: PromotionCampaign = {
   id: '',
   name: '',
@@ -94,6 +102,18 @@ const getCalendarDates = (visibleDate: Date) => {
   });
 };
 
+const normalizePromotion = (promotion: PromotionApiCampaign): PromotionCampaign => ({
+  ...promotion,
+  imageUrl:
+    promotion.imageUrl?.trim() ||
+    promotion.image?.trim() ||
+    promotion.imageURL?.trim() ||
+    promotion.fileUrl?.trim() ||
+    promotion.secureUrl?.trim() ||
+    promotion.url?.trim() ||
+    '',
+});
+
 export default function PromotionManagementScreen() {
   const [campaigns, setCampaigns] = useState<PromotionCampaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
@@ -119,9 +139,9 @@ export default function PromotionManagementScreen() {
     setIsLoadingPromotions(true);
     try {
       const response = await fetch(`${API_BASE_URL}/promotions`);
-      const data = await parseApiResponse<{ promotions: PromotionCampaign[] }>(response);
+      const data = await parseApiResponse<{ promotions: PromotionApiCampaign[] }>(response);
 
-      const savedPromotions = data.promotions ?? [];
+      const savedPromotions = (data.promotions ?? []).map(normalizePromotion);
       setCampaigns(savedPromotions);
       setSelectedCampaignId((current) => {
         if (savedPromotions.some((promotion) => promotion.id === current)) {
@@ -163,7 +183,7 @@ export default function PromotionManagementScreen() {
   };
 
   const openEditModal = (campaign: PromotionCampaign) => {
-    setForm(campaign);
+    setForm(normalizePromotion(campaign));
     setVisibleCalendarDate(parseDateValue(campaign.endDate));
     setIsCalendarVisible(false);
     setFeedback(null);
@@ -263,14 +283,14 @@ export default function PromotionManagementScreen() {
 
       const isExistingPromotion = campaigns.some((campaign) => campaign.id === form.id);
       const response = await fetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
-        method: isExistingPromotion ? 'PATCH' : 'POST',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
-      const data = await parseApiResponse<{ promotion: PromotionCampaign; message?: string }>(response);
-      const nextCampaign = data.promotion;
+      const data = await parseApiResponse<{ promotion: PromotionApiCampaign; message?: string }>(response);
+      const nextCampaign = normalizePromotion(data.promotion);
 
       setCampaigns((current) => {
         const exists = current.some((campaign) => campaign.id === nextCampaign.id);
@@ -294,8 +314,8 @@ export default function PromotionManagementScreen() {
 
   const deleteCampaign = async (campaign: PromotionCampaign) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
-        method: 'DELETE',
+      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}/delete`, {
+        method: 'POST',
       });
       const data = await parseApiResponse<{ message?: string; id: string }>(response);
 
