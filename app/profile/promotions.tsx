@@ -217,9 +217,7 @@ export default function PromotionManagementScreen() {
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
             </Pressable>
             <Text style={[styles.topBarTitle, { color: palette.textPrimary }]}>Promotions</Text>
-            <Pressable style={[styles.addButton, { backgroundColor: palette.accent }]} onPress={openCreateModal}>
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-            </Pressable>
+            <View style={styles.topBarSpacer} />
           </View>
 
           <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -254,6 +252,30 @@ export default function PromotionManagementScreen() {
             <MetricCard label="Redeemed" value={totals.totalRedemptions.toLocaleString()} icon="ticket-outline" />
           </View>
 
+          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>PROMOTION SETUP</Text>
+
+          <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={styles.setupHeaderRow}>
+              <View style={[styles.detailsHeader, styles.setupDetailsHeader]}>
+                <View style={[styles.promotionIntroIcon, { backgroundColor: palette.accentSoft }]}>
+                  <Ionicons name="pricetag-outline" size={20} color={palette.accent} />
+                </View>
+
+                <View style={[styles.detailsHeaderText, styles.setupTextWrap]}>
+                  <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>Create promotion record</Text>
+                  <Text style={[styles.detailsHint, styles.setupHint, { color: palette.textSecondary }]}>
+                    Add promo codes, discount limits, dates, and audience rules before publishing a campaign.
+                  </Text>
+                </View>
+              </View>
+
+              <Pressable style={[styles.addPromotionButton, { backgroundColor: palette.accent }]} onPress={openCreateModal}>
+                <Ionicons name="add" size={18} color="#FFFFFF" />
+                <Text style={styles.addPromotionButtonText}>Add</Text>
+              </Pressable>
+            </View>
+          </View>
+
           <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>CAMPAIGNS</Text>
 
           <View style={styles.campaignList}>
@@ -274,7 +296,7 @@ export default function PromotionManagementScreen() {
 
               <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
                 <View style={styles.detailsHeader}>
-                  <View>
+                  <View style={styles.detailsHeaderText}>
                     <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>{selectedCampaign.name}</Text>
                     <Text style={[styles.detailsHint, { color: palette.textSecondary }]}>
                       Current promo rules applied when passengers use {selectedCampaign.code}.
@@ -480,8 +502,10 @@ function PromotionRow({
         </View>
 
         <View style={styles.campaignTextWrap}>
-          <Text style={[styles.campaignName, { color: palette.textPrimary }]}>{campaign.name}</Text>
-          <Text style={[styles.campaignSubtext, { color: palette.textSecondary }]}>
+          <Text style={[styles.campaignName, { color: palette.textPrimary }]} numberOfLines={1}>
+            {campaign.name}
+          </Text>
+          <Text style={[styles.campaignSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
             {campaign.code} | {campaign.audience}
           </Text>
         </View>
@@ -489,7 +513,7 @@ function PromotionRow({
 
       <View style={styles.campaignRight}>
         <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
-          <Text style={[styles.statusText, { color: statusColor }]}>{campaign.status}</Text>
+          <Text style={[styles.statusText, { color: statusColor }]} numberOfLines={1}>{campaign.status}</Text>
         </View>
         <Switch
           value={campaign.active}
@@ -506,7 +530,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>{label}</Text>
-      <Text style={[styles.infoValue, { color: palette.textPrimary }]}>{value || 'Not set'}</Text>
+      <Text style={[styles.infoValue, { color: palette.textPrimary }]} numberOfLines={2}>{value || 'Not set'}</Text>
     </View>
   );
 }
@@ -580,12 +604,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
   },
-  addButton: {
+  topBarSpacer: {
     width: 38,
     height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   heroCard: {
     borderRadius: 16,
@@ -687,13 +708,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
+    minHeight: 76,
   },
   campaignMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minWidth: 0,
   },
   campaignIcon: {
     width: 38,
@@ -704,6 +727,7 @@ const styles = StyleSheet.create({
   },
   campaignTextWrap: {
     flex: 1,
+    minWidth: 0,
   },
   campaignName: {
     fontSize: 14,
@@ -716,13 +740,16 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   campaignRight: {
+    width: 92,
     alignItems: 'flex-end',
     gap: 6,
+    flexShrink: 0,
   },
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 4,
+    maxWidth: 92,
   },
   statusText: {
     fontSize: 11,
@@ -741,6 +768,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  setupDetailsHeader: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  setupHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  promotionIntroIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  detailsHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  setupTextWrap: {
+    paddingRight: 2,
+  },
   detailsTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -752,7 +804,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     maxWidth: 220,
   },
+  setupHint: {
+    maxWidth: undefined,
+  },
+  addPromotionButton: {
+    width: 78,
+    minHeight: 38,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  addPromotionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
   compactEditButton: {
+    width: 72,
     minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
@@ -772,19 +845,21 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 16,
-    minHeight: 22,
+    minHeight: 24,
   },
   infoLabel: {
     fontSize: 12,
     fontWeight: '700',
+    lineHeight: 18,
     flexShrink: 0,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 19,
     flex: 1,
     textAlign: 'right',
   },
