@@ -204,8 +204,7 @@ export default function PromotionManagementScreen() {
       ...form,
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
-      discountType: 'Percentage' as const,
-      maxDiscount: form.maxDiscount.trim() || '500',
+      maxDiscount: form.maxDiscount.trim() || (form.discountType === 'Percentage' ? '500' : form.discountValue.trim()),
       minFare: form.minFare.trim() || '0',
       startDate: form.startDate.trim() || new Date().toISOString().slice(0, 10),
       endDate: form.endDate.trim() || 'No end date',
@@ -420,15 +419,39 @@ export default function PromotionManagementScreen() {
                   </Text>
                 </Pressable>
 
+                <Text style={[styles.inputLabel, { color: palette.textSecondary }]}>Discount type</Text>
+                <View style={styles.simpleChoiceRow}>
+                  {(['Percentage', 'Fixed'] as DiscountType[]).map((type) => {
+                    const isSelected = form.discountType === type;
+
+                    return (
+                      <Pressable
+                        key={type}
+                        style={[
+                          styles.simpleChoiceButton,
+                          {
+                            backgroundColor: isSelected ? palette.accent : palette.input,
+                            borderColor: isSelected ? palette.accent : palette.border,
+                          },
+                        ]}
+                        onPress={() => handleChange('discountType', type)}>
+                        <Text style={[styles.simpleChoiceText, { color: isSelected ? '#FFFFFF' : palette.textPrimary }]}>
+                          {type === 'Percentage' ? 'Percentage' : 'Fixed Price'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
                 <FormInput
-                  label="Discount percentage"
+                  label={form.discountType === 'Percentage' ? 'Discount percentage' : 'Fixed discount amount'}
                   value={form.discountValue}
                   onChangeText={(value) => {
-                    handleChange('discountType', 'Percentage');
-                    handleChange('discountValue', value.replace(/\D/g, '').slice(0, 3));
+                    const digits = value.replace(/\D/g, '');
+                    handleChange('discountValue', form.discountType === 'Percentage' ? digits.slice(0, 3) : digits.slice(0, 6));
                   }}
                   keyboardType="numeric"
-                  placeholder="25"
+                  placeholder={form.discountType === 'Percentage' ? '25' : '300'}
                 />
                 <FormInput
                   label="End date"
@@ -967,6 +990,25 @@ const styles = StyleSheet.create({
   imageSelectButtonText: {
     fontSize: 13,
     fontWeight: '900',
+  },
+  simpleChoiceRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  simpleChoiceButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  simpleChoiceText: {
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   segmentedRow: {
     flexDirection: 'row',
