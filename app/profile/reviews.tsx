@@ -86,6 +86,21 @@ const FILTERS: { label: string; value: ReviewStatus }[] = [
   { label: 'All', value: 'all' },
 ];
 
+const formatDate = (iso?: string | null) => {
+  if (!iso) return 'Not available';
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+
+  return date.toLocaleDateString('en-LK', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 const formatVehicle = (review: AdminRideReview) => {
   const vehicle = review.driver?.vehicle;
   const name = [vehicle?.make, vehicle?.model].filter(Boolean).join(' ');
@@ -325,6 +340,7 @@ function ReviewRow({
   onReject: () => void;
 }) {
   const canModerate = review.status === 'review';
+  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <Pressable
@@ -354,14 +370,44 @@ function ReviewRow({
         <StatusBadge status={review.status} />
       </View>
 
+      <View style={[styles.messageBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
+        <Ionicons name="chatbubble-ellipses-outline" size={15} color={palette.accent} />
+        <Text style={[styles.messageText, { color: palette.textPrimary }]} numberOfLines={showDetails ? undefined : 2}>
+          {review.comment || 'No written review message.'}
+        </Text>
+      </View>
+
+      {showDetails ? (
+        <View style={[styles.detailsBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
+          <DetailLine icon="person-outline" label="Passenger" value={review.passenger?.fullName || 'Passenger not available'} />
+          <DetailLine icon="call-outline" label="Passenger phone" value={review.passenger?.phoneNumber || 'Not available'} />
+          <DetailLine icon="mail-outline" label="Passenger email" value={review.passenger?.email || 'Not available'} />
+          <DetailLine icon="car-outline" label="Driver" value={review.driver?.fullName || 'Driver not available'} />
+          <DetailLine icon="pricetag-outline" label="Vehicle" value={formatVehicle(review)} />
+          <DetailLine icon="barcode-outline" label="Plate" value={review.driver?.vehicle?.plateNumber || 'No plate'} />
+          <DetailLine icon="calendar-outline" label="Submitted" value={formatDate(review.submittedAt || review.reviewedAt)} />
+          <DetailLine icon="time-outline" label="Moderated" value={formatDate(review.moderatedAt)} />
+        </View>
+      ) : null}
+
       <View style={styles.reviewFooter}>
         <View style={styles.ratingMiniWrap}>
           <StarStrip rating={review.rating} />
           <Text style={[styles.ratingMiniText, { color: palette.warning }]}>{review.rating}.0</Text>
         </View>
 
-        {canModerate ? (
-          <View style={styles.rowButtons}>
+        <View style={styles.rowButtons}>
+          <Pressable
+            style={[styles.rowActionButton, { backgroundColor: palette.input, borderColor: palette.border }]}
+            onPress={() => setShowDetails((current) => !current)}>
+            <Ionicons name={showDetails ? 'chevron-up-outline' : 'eye-outline'} size={15} color={palette.textSecondary} />
+            <Text style={[styles.rowNeutralText, { color: palette.textSecondary }]}>
+              {showDetails ? 'Hide' : 'View Details'}
+            </Text>
+          </Pressable>
+
+          {canModerate ? (
+            <>
             <Pressable
               style={[styles.rowActionButton, { backgroundColor: palette.dangerSoft, borderColor: '#F1D6D6' }, isUpdating ? styles.disabledButton : null]}
               disabled={isUpdating}
@@ -377,10 +423,31 @@ function ReviewRow({
               <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
               <Text style={[styles.rowEditText, { color: palette.accent }]}>Approve</Text>
             </Pressable>
-          </View>
-        ) : null}
+            </>
+          ) : null}
+        </View>
       </View>
     </Pressable>
+  );
+}
+
+function DetailLine({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.detailLine}>
+      <Ionicons name={icon} size={14} color={palette.accent} />
+      <Text style={[styles.detailLabel, { color: palette.textSecondary }]}>{label}</Text>
+      <Text style={[styles.detailValue, { color: palette.textPrimary }]} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -657,6 +724,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 17,
   },
+  messageBox: {
+    borderRadius: 13,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  messageText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  detailsBox: {
+    borderRadius: 13,
+    borderWidth: 1,
+    padding: 10,
+    gap: 8,
+  },
+  detailLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  detailLabel: {
+    width: 104,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailValue: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
   statusBadge: {
     minHeight: 28,
     borderRadius: 999,
@@ -718,6 +822,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   rowDeleteText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rowNeutralText: {
     fontSize: 12,
     fontWeight: '900',
   },
