@@ -116,6 +116,7 @@ export default function AdminReviewManagerScreen() {
   const [summaryReviews, setSummaryReviews] = useState<AdminRideReview[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [updatingReviewId, setUpdatingReviewId] = useState<string | null>(null);
+  const [detailsReview, setDetailsReview] = useState<AdminRideReview | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const totals = useMemo(() => {
@@ -300,6 +301,7 @@ export default function AdminReviewManagerScreen() {
                 key={review.rideId}
                 review={review}
                 isUpdating={updatingReviewId === review.rideId}
+                onViewDetails={() => setDetailsReview(review)}
                 onApprove={() => updateReviewStatus(review, 'approved')}
                 onReject={() => updateReviewStatus(review, 'rejected')}
               />
@@ -314,6 +316,54 @@ export default function AdminReviewManagerScreen() {
           </View>
         ) : null}
       </RefreshableScrollView>
+
+      {detailsReview ? (
+        <View style={styles.popupOverlay}>
+          <Pressable style={styles.popupBackdrop} onPress={() => setDetailsReview(null)} />
+          <View style={styles.popupCard}>
+            <View style={styles.popupHeader}>
+              <View style={styles.popupHeaderMain}>
+                <View style={[styles.popupIcon, { backgroundColor: palette.accentSoft }]}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.accent} />
+                </View>
+                <View style={styles.popupTitleWrap}>
+                  <Text style={[styles.popupTitle, { color: palette.textPrimary }]}>Review Details</Text>
+                  <Text style={[styles.popupSubtitle, { color: palette.textSecondary }]} numberOfLines={1}>
+                    {detailsReview.driver?.fullName || 'Driver not available'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable style={[styles.popupCloseButton, { borderColor: palette.border }]} onPress={() => setDetailsReview(null)}>
+                <Ionicons name="close" size={18} color={palette.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={[styles.popupMessageBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
+              <Text style={[styles.popupSectionLabel, { color: palette.textSecondary }]}>REVIEW MESSAGE</Text>
+              <View style={styles.popupRatingRow}>
+                <StarStrip rating={detailsReview.rating} />
+                <Text style={[styles.popupRatingText, { color: palette.warning }]}>{detailsReview.rating}.0 rating</Text>
+                <StatusBadge status={detailsReview.status} />
+              </View>
+              <Text style={[styles.popupMessageText, { color: palette.textPrimary }]}>
+                {detailsReview.comment || 'No written review message.'}
+              </Text>
+            </View>
+
+            <View style={[styles.popupDetailsBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
+              <Text style={[styles.popupSectionLabel, { color: palette.textSecondary }]}>RIDE DETAILS</Text>
+              <DetailLine icon="person-outline" label="Passenger" value={detailsReview.passenger?.fullName || 'Passenger not available'} />
+              <DetailLine icon="call-outline" label="Passenger phone" value={detailsReview.passenger?.phoneNumber || 'Not available'} />
+              <DetailLine icon="mail-outline" label="Passenger email" value={detailsReview.passenger?.email || 'Not available'} />
+              <DetailLine icon="car-outline" label="Driver" value={detailsReview.driver?.fullName || 'Driver not available'} />
+              <DetailLine icon="pricetag-outline" label="Vehicle" value={formatVehicle(detailsReview)} />
+              <DetailLine icon="barcode-outline" label="Plate" value={detailsReview.driver?.vehicle?.plateNumber || 'No plate'} />
+              <DetailLine icon="calendar-outline" label="Submitted" value={formatDate(detailsReview.submittedAt || detailsReview.reviewedAt)} />
+              <DetailLine icon="time-outline" label="Moderated" value={formatDate(detailsReview.moderatedAt)} />
+            </View>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -331,16 +381,17 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
 function ReviewRow({
   review,
   isUpdating,
+  onViewDetails,
   onApprove,
   onReject,
 }: {
   review: AdminRideReview;
   isUpdating: boolean;
+  onViewDetails: () => void;
   onApprove: () => void;
   onReject: () => void;
 }) {
   const canModerate = review.status === 'review';
-  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <Pressable
@@ -372,23 +423,10 @@ function ReviewRow({
 
       <View style={[styles.messageBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
         <Ionicons name="chatbubble-ellipses-outline" size={15} color={palette.accent} />
-        <Text style={[styles.messageText, { color: palette.textPrimary }]} numberOfLines={showDetails ? undefined : 2}>
+        <Text style={[styles.messageText, { color: palette.textPrimary }]} numberOfLines={2}>
           {review.comment || 'No written review message.'}
         </Text>
       </View>
-
-      {showDetails ? (
-        <View style={[styles.detailsBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
-          <DetailLine icon="person-outline" label="Passenger" value={review.passenger?.fullName || 'Passenger not available'} />
-          <DetailLine icon="call-outline" label="Passenger phone" value={review.passenger?.phoneNumber || 'Not available'} />
-          <DetailLine icon="mail-outline" label="Passenger email" value={review.passenger?.email || 'Not available'} />
-          <DetailLine icon="car-outline" label="Driver" value={review.driver?.fullName || 'Driver not available'} />
-          <DetailLine icon="pricetag-outline" label="Vehicle" value={formatVehicle(review)} />
-          <DetailLine icon="barcode-outline" label="Plate" value={review.driver?.vehicle?.plateNumber || 'No plate'} />
-          <DetailLine icon="calendar-outline" label="Submitted" value={formatDate(review.submittedAt || review.reviewedAt)} />
-          <DetailLine icon="time-outline" label="Moderated" value={formatDate(review.moderatedAt)} />
-        </View>
-      ) : null}
 
       <View style={styles.reviewFooter}>
         <View style={styles.ratingMiniWrap}>
@@ -399,10 +437,10 @@ function ReviewRow({
         <View style={styles.rowButtons}>
           <Pressable
             style={[styles.rowActionButton, { backgroundColor: palette.input, borderColor: palette.border }]}
-            onPress={() => setShowDetails((current) => !current)}>
-            <Ionicons name={showDetails ? 'chevron-up-outline' : 'eye-outline'} size={15} color={palette.textSecondary} />
+            onPress={onViewDetails}>
+            <Ionicons name="eye-outline" size={15} color={palette.textSecondary} />
             <Text style={[styles.rowNeutralText, { color: palette.textSecondary }]}>
-              {showDetails ? 'Hide' : 'View Details'}
+              View Details
             </Text>
           </Pressable>
 
@@ -739,12 +777,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 19,
   },
-  detailsBox: {
-    borderRadius: 13,
-    borderWidth: 1,
-    padding: 10,
-    gap: 8,
-  },
   detailLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -845,5 +877,99 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '700',
+  },
+  popupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  popupBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(18, 53, 50, 0.36)',
+  },
+  popupCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.card,
+    padding: 14,
+    gap: 10,
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  popupHeaderMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+  },
+  popupIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  popupTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  popupSubtitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  popupCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: palette.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupMessageBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    gap: 8,
+  },
+  popupSectionLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  popupRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  popupRatingText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  popupMessageText: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  popupDetailsBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    gap: 8,
   },
 });
