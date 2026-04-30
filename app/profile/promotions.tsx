@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const palette = {
@@ -121,6 +122,7 @@ export default function PromotionManagementScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
   const [isSavingPromotion, setIsSavingPromotion] = useState(false);
+  const [updatingCampaignId, setUpdatingCampaignId] = useState<string | null>(null);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [visibleCalendarDate, setVisibleCalendarDate] = useState(new Date());
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -354,27 +356,50 @@ export default function PromotionManagementScreen() {
     ]);
   };
 
-  const toggleCampaign = (campaignId: string) => {
-    setCampaigns((current) =>
-      current.map((campaign) => {
-        if (campaign.id !== campaignId) {
-          return campaign;
-        }
+  const toggleCampaign = async (campaign: PromotionCampaign) => {
+    if (updatingCampaignId) {
+      return;
+    }
 
-        const nextActive = !campaign.active;
-        return {
-          ...campaign,
+    const nextActive = !campaign.active;
+    const nextStatus: CampaignStatus = nextActive ? 'Active' : 'Paused';
+
+    setUpdatingCampaignId(campaign.id);
+    setFeedback(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           active: nextActive,
-          status: nextActive ? 'Active' : 'Paused',
-        };
-      })
-    );
+          status: nextStatus,
+        }),
+      });
+      const data = await parseApiResponse<{ promotion: PromotionApiCampaign; message?: string }>(response);
+      const updatedCampaign = normalizePromotion(data.promotion);
+
+      setCampaigns((current) =>
+        current.map((item) => (item.id === updatedCampaign.id ? updatedCampaign : item))
+      );
+      setFeedback(data.message || `Promotion ${nextActive ? 'activated' : 'paused'} successfully.`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to update promotion status.');
+    } finally {
+      setUpdatingCampaignId(null);
+    }
   };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <RefreshableScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onRefreshPage={loadPromotions}>
           <View style={styles.topBar}>
             <Pressable style={[styles.backButton, { borderColor: palette.border }]} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
@@ -464,15 +489,18 @@ export default function PromotionManagementScreen() {
                   campaign={campaign}
                   selected={campaign.id === selectedCampaign?.id}
                   onPress={() => setSelectedCampaignId(campaign.id)}
-                  onToggle={() => toggleCampaign(campaign.id)}
+                  onToggle={() => {
+                    void toggleCampaign(campaign);
+                  }}
                   onEdit={() => openEditModal(campaign)}
                   onDelete={() => confirmDeleteCampaign(campaign)}
+                  isUpdating={updatingCampaignId === campaign.id}
                 />
               ))}
             </View>
           )}
 
-        </ScrollView>
+        </RefreshableScrollView>
       </KeyboardAvoidingView>
 
       <Modal visible={isModalVisible} transparent animationType="fade" onRequestClose={closeModal}>
@@ -673,6 +701,7 @@ function PromotionRow({
   onToggle,
   onEdit,
   onDelete,
+  isUpdating,
 }: {
   campaign: PromotionCampaign;
   selected: boolean;
@@ -680,6 +709,7 @@ function PromotionRow({
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  isUpdating: boolean;
 }) {
   const statusColor =
     campaign.status === 'Active' ? palette.success : campaign.status === 'Scheduled' ? palette.warning : palette.textSecondary;
@@ -717,12 +747,17 @@ function PromotionRow({
         </View>
 
         <View style={styles.campaignSwitchWrap}>
-          <Switch
-            value={campaign.active}
-            onValueChange={onToggle}
-            trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
-            thumbColor={campaign.active ? palette.accent : '#F8FAFA'}
-          />
+          {isUpdating ? (
+            <ActivityIndicator size="small" color={palette.accent} />
+          ) : (
+            <Switch
+              value={campaign.active}
+              onValueChange={onToggle}
+              disabled={isUpdating}
+              trackColor={{ false: '#D6E4E1', true: '#BEE6E1' }}
+              thumbColor={campaign.active ? palette.accent : '#F8FAFA'}
+            />
+          )}
         </View>
       </View>
 

@@ -12,6 +12,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
+
 const teal = '#008080';
 
 const summaryCards = [
@@ -77,7 +79,7 @@ export default function AdminSupportScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <RefreshableScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.pageTitle}>Complaint & Support Tickets</Text>
           <Text style={styles.pageSubtitle}>
@@ -174,7 +176,7 @@ export default function AdminSupportScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </RefreshableScrollView>
     </SafeAreaView>
   );
 }
