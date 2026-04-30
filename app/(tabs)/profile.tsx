@@ -19,7 +19,7 @@ type ProfileSection = {
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
   badge?: string;
-  route?: '/profile/admin-details' | '/profile/promotions' | '/profile/account-security' | '/users';
+  route?: '/profile/admin-details' | '/profile/promotions' | '/profile/reviews' | '/profile/account-security' | '/users';
 };
 
 const palette = {
@@ -60,6 +60,13 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     icon: 'people-outline',
     badge: 'LIVE',
     route: '/users',
+  },
+  {
+    title: 'Review & Rating Manager',
+    subtitle: 'Approve passenger ride reviews before they appear on driver profiles',
+    icon: 'star-half-outline',
+    badge: 'NEW',
+    route: '/profile/reviews',
   },
   {
     title: 'Account Security',

@@ -20,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="profile/admin-details" options={{ headerShown: false }} />
         <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
         <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
