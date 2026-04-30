@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
@@ -106,6 +106,9 @@ const formatVehicle = (review: AdminRideReview) => {
   return name || vehicle?.category || review.vehicleType || 'Vehicle not available';
 };
 
+const buildReviewsUrl = (status: ReviewStatus) =>
+  `${API_BASE_URL}/rides/admin/reviews?status=${status}&refresh=${Date.now()}`;
+
 export default function AdminReviewManagerScreen() {
   const [activeFilter, setActiveFilter] = useState<ReviewStatus>('review');
   const [reviews, setReviews] = useState<AdminRideReview[]>([]);
@@ -125,9 +128,13 @@ export default function AdminReviewManagerScreen() {
 
   const loadReviews = useCallback(async () => {
     setIsLoadingReviews(true);
+    setReviews([]);
+    setSelectedReviewId('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`);
+      const response = await fetch(buildReviewsUrl(activeFilter), {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
       const data = await parseReviewsResponse(response);
       const savedReviews = data.reviews ?? [];
 
@@ -140,7 +147,9 @@ export default function AdminReviewManagerScreen() {
       });
 
       try {
-        const summaryResponse = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=all`);
+        const summaryResponse = await fetch(buildReviewsUrl('all'), {
+          headers: { 'Cache-Control': 'no-cache' },
+        });
         const summaryData = await parseReviewsResponse(summaryResponse);
         setSummaryReviews(summaryData.reviews ?? savedReviews);
       } catch {
@@ -153,9 +162,17 @@ export default function AdminReviewManagerScreen() {
     }
   }, [activeFilter]);
 
-  useEffect(() => {
-    void loadReviews();
-  }, [loadReviews]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadReviews();
+    }, [loadReviews])
+  );
+
+  const handleFilterChange = (filter: ReviewStatus) => {
+    setFeedback(null);
+    setActiveFilter(filter);
+  };
+
 
   const updateReviewStatus = async (review: AdminRideReview, status: 'approved' | 'rejected') => {
     if (updatingReviewId) return;
@@ -259,7 +276,7 @@ export default function AdminReviewManagerScreen() {
                       borderColor: selected ? palette.accent : palette.border,
                     },
                   ]}
-                  onPress={() => setActiveFilter(filter.value)}>
+                  onPress={() => handleFilterChange(filter.value)}>
                   <Text style={[styles.filterText, { color: selected ? '#FFFFFF' : palette.textPrimary }]}>
                     {filter.label}
                   </Text>
