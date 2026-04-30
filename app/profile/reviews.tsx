@@ -9,14 +9,28 @@ import {
   Text,
   View,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
-const teal = '#008080';
+const palette = {
+  background: '#F4F8F7',
+  textPrimary: '#123532',
+  textSecondary: '#617C79',
+  card: '#FFFFFF',
+  border: '#DFE9E7',
+  accent: '#14988F',
+  accentSoft: '#E7F5F3',
+  input: '#F7FBFA',
+  danger: '#C13B3B',
+  dangerSoft: '#FFF4F4',
+  warning: '#D97706',
+  warningSoft: '#FFF8EC',
+  success: '#157A62',
+  successSoft: '#E9F8EF',
+};
 
 type ReviewStatus = 'all' | 'review' | 'approved' | 'rejected';
 
@@ -77,23 +91,38 @@ const formatVehicle = (review: AdminRideReview) => {
 export default function AdminReviewManagerScreen() {
   const [activeFilter, setActiveFilter] = useState<ReviewStatus>('review');
   const [reviews, setReviews] = useState<AdminRideReview[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updatingRideId, setUpdatingRideId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useState('');
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [updatingReviewId, setUpdatingReviewId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  const selectedReview = reviews.find((review) => review.rideId === selectedReviewId) ?? reviews[0];
+
+  const totals = useMemo(() => {
+    const pendingCount = reviews.filter((review) => review.status === 'review').length;
+    const approvedCount = reviews.filter((review) => review.status === 'approved').length;
+    return { pendingCount, approvedCount, totalCount: reviews.length };
+  }, [reviews]);
+
   const loadReviews = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage(null);
+    setIsLoadingReviews(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`);
       const data = await parseApiResponse<{ reviews: AdminRideReview[] }>(response);
-      setReviews(data.reviews ?? []);
+      const savedReviews = data.reviews ?? [];
+
+      setReviews(savedReviews);
+      setSelectedReviewId((current) => {
+        if (savedReviews.some((review) => review.rideId === current)) {
+          return current;
+        }
+        return savedReviews[0]?.rideId ?? '';
+      });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load reviews.');
+      setFeedback(error instanceof Error ? error.message : 'Unable to load review queue.');
     } finally {
-      setLoading(false);
+      setIsLoadingReviews(false);
     }
   }, [activeFilter]);
 
@@ -101,187 +130,297 @@ export default function AdminReviewManagerScreen() {
     void loadReviews();
   }, [loadReviews]);
 
-  const counts = useMemo(() => {
-    const pending = reviews.filter((review) => review.status === 'review').length;
-    const approved = reviews.filter((review) => review.status === 'approved').length;
-    const rejected = reviews.filter((review) => review.status === 'rejected').length;
+  const updateReviewStatus = async (review: AdminRideReview, status: Exclude<ReviewStatus, 'all'>) => {
+    if (updatingReviewId) return;
 
-    return { pending, approved, rejected };
-  }, [reviews]);
-
-  const updateReviewStatus = async (rideId: string, status: Exclude<ReviewStatus, 'all'>) => {
-    setUpdatingRideId(rideId);
+    setUpdatingReviewId(review.rideId);
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews/${rideId}`, {
+      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews/${review.rideId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      const data = await parseApiResponse<{ review: AdminRideReview }>(response);
+      const data = await parseApiResponse<{ review: AdminRideReview; message?: string }>(response);
+      const updatedReview = data.review;
 
-      if (activeFilter === 'all' || data.review.status === activeFilter) {
-        setReviews((current) =>
-          current.map((review) => (review.rideId === rideId ? data.review : review))
-        );
-      } else {
-        setReviews((current) => current.filter((review) => review.rideId !== rideId));
-      }
+      setReviews((current) => {
+        if (activeFilter !== 'all' && updatedReview.status !== activeFilter) {
+          return current.filter((item) => item.rideId !== updatedReview.rideId);
+        }
 
-      setFeedback(status === 'approved' ? 'Review approved for public profile.' : 'Review status updated.');
+        return current.map((item) => (item.rideId === updatedReview.rideId ? updatedReview : item));
+      });
+
+      setSelectedReviewId((current) => (current === updatedReview.rideId ? updatedReview.rideId : current));
+      setFeedback(
+        status === 'approved'
+          ? 'Review approved for public driver profile.'
+          : status === 'rejected'
+            ? 'Review rejected and hidden from public profile.'
+            : 'Review returned to pending queue.'
+      );
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Unable to update review.');
+      setFeedback(error instanceof Error ? error.message : 'Unable to update review status.');
     } finally {
-      setUpdatingRideId(null);
+      setUpdatingReviewId(null);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
       <RefreshableScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         onRefreshPage={loadReviews}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color="#123532" />
+        <View style={styles.topBar}>
+          <Pressable style={[styles.backButton, { borderColor: palette.border }]} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
           </Pressable>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.eyebrow}>ADMIN TOOLS</Text>
-            <Text style={styles.pageTitle}>Review & Rating Manager</Text>
-            <Text style={styles.pageSubtitle}>
-              Approve passenger ride feedback before it appears on public driver profiles.
-            </Text>
-          </View>
+          <Text style={[styles.topBarTitle, { color: palette.textPrimary }]}>Reviews</Text>
+          <View style={styles.topBarSpacer} />
         </View>
 
-        <View style={styles.summaryRow}>
-          <SummaryCard icon="time-outline" label="Pending" value={String(counts.pending)} />
-          <SummaryCard icon="checkmark-circle-outline" label="Approved" value={String(counts.approved)} />
-          <SummaryCard icon="close-circle-outline" label="Rejected" value={String(counts.rejected)} />
-        </View>
+        <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <View style={styles.heroTopRow}>
+            <View style={[styles.heroIcon, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}>
+              <Ionicons name="star-half-outline" size={26} color={palette.accent} />
+            </View>
 
-        <View style={styles.filterRow}>
-          {FILTERS.map((filter) => (
-            <Pressable
-              key={filter.value}
-              style={[styles.filterButton, activeFilter === filter.value ? styles.filterButtonActive : null]}
-              onPress={() => setActiveFilter(filter.value)}>
-              <Text style={[styles.filterText, activeFilter === filter.value ? styles.filterTextActive : null]}>
-                {filter.label}
+            <View style={styles.heroIdentity}>
+              <Text style={[styles.heroName, { color: palette.textPrimary }]}>Review & Rating Management</Text>
+              <Text style={[styles.heroSubline, { color: palette.textSecondary }]}>
+                Moderate passenger feedback before it appears on public driver profiles.
               </Text>
-            </Pressable>
-          ))}
+            </View>
+          </View>
+
+          <View style={[styles.heroBadge, { backgroundColor: palette.accentSoft }]}>
+            <Ionicons name="shield-checkmark-outline" size={15} color={palette.accent} />
+            <Text style={[styles.heroBadgeText, { color: palette.accent }]}>Approval control</Text>
+          </View>
+
+          <Text style={[styles.heroHint, { color: palette.textSecondary }]}>
+            Approve only fair, useful, and policy-safe ride reviews. Rejected reviews stay hidden from public driver profiles.
+          </Text>
         </View>
 
-        {feedback ? (
-          <View style={styles.feedbackCard}>
-            <Ionicons name="information-circle-outline" size={17} color={teal} />
-            <Text style={styles.feedbackText}>{feedback}</Text>
+        <View style={styles.metricGrid}>
+          <MetricCard label="Pending" value={String(totals.pendingCount)} icon="time-outline" />
+          <MetricCard label="Approved" value={String(totals.approvedCount)} icon="checkmark-circle-outline" />
+          <MetricCard label="Visible" value={String(totals.totalCount)} icon="list-outline" />
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>REVIEW FILTER</Text>
+
+        <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <View style={styles.filterRow}>
+            {FILTERS.map((filter) => {
+              const selected = activeFilter === filter.value;
+
+              return (
+                <Pressable
+                  key={filter.value}
+                  style={[
+                    styles.filterButton,
+                    {
+                      backgroundColor: selected ? palette.accent : palette.input,
+                      borderColor: selected ? palette.accent : palette.border,
+                    },
+                  ]}
+                  onPress={() => setActiveFilter(filter.value)}>
+                  <Text style={[styles.filterText, { color: selected ? '#FFFFFF' : palette.textPrimary }]}>
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+        </View>
+
+        {selectedReview ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>SELECTED REVIEW</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.detailsHeader}>
+                <View style={[styles.detailsIcon, { backgroundColor: palette.accentSoft }]}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.accent} />
+                </View>
+                <View style={styles.detailsHeaderText}>
+                  <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>
+                    {selectedReview.driver?.fullName || 'Driver not available'}
+                  </Text>
+                  <Text style={[styles.detailsHint, { color: palette.textSecondary }]}>
+                    {formatVehicle(selectedReview)} | {selectedReview.driver?.vehicle?.plateNumber || 'No plate'}
+                  </Text>
+                </View>
+                <StatusBadge status={selectedReview.status} />
+              </View>
+
+              <View style={styles.selectedRatingRow}>
+                <StarStrip rating={selectedReview.rating} />
+                <Text style={[styles.selectedRatingText, { color: palette.warning }]}>{selectedReview.rating}.0 rating</Text>
+              </View>
+
+              <Text style={[styles.selectedComment, { color: palette.textPrimary, backgroundColor: palette.input, borderColor: palette.border }]}>
+                {selectedReview.comment || 'No written comment.'}
+              </Text>
+
+              <View style={styles.selectedInfoGrid}>
+                <InfoTile label="Passenger" value={selectedReview.passenger?.fullName || 'Passenger not available'} icon="person-outline" />
+                <InfoTile label="Submitted" value={formatDate(selectedReview.submittedAt || selectedReview.reviewedAt)} icon="calendar-outline" />
+              </View>
+            </View>
+          </>
         ) : null}
 
-        {loading ? (
-          <View style={styles.stateCard}>
-            <ActivityIndicator size="small" color={teal} />
-            <Text style={styles.stateText}>Loading review queue...</Text>
-          </View>
-        ) : errorMessage ? (
-          <View style={styles.stateCard}>
-            <Ionicons name="alert-circle-outline" size={20} color="#C13B3B" />
-            <Text style={styles.stateErrorText}>{errorMessage}</Text>
+        <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>REVIEWS</Text>
+
+        {isLoadingReviews ? (
+          <View style={[styles.loadingCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <ActivityIndicator size="small" color={palette.accent} />
+            <Text style={[styles.loadingText, { color: palette.textSecondary }]}>Loading review queue...</Text>
           </View>
         ) : reviews.length === 0 ? (
-          <View style={styles.stateCard}>
-            <Ionicons name="star-outline" size={24} color={teal} />
-            <Text style={styles.stateText}>No reviews found for this filter.</Text>
+          <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft }]}>
+              <Ionicons name="star-outline" size={24} color={palette.accent} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: palette.textPrimary }]}>No reviews found</Text>
+            <Text style={[styles.emptyText, { color: palette.textSecondary }]}>
+              Pull to refresh or change the filter to inspect another moderation state.
+            </Text>
           </View>
         ) : (
           <View style={styles.reviewList}>
             {reviews.map((review) => (
-              <View key={review.rideId} style={styles.reviewCard}>
-                <View style={styles.reviewTopRow}>
-                  <View style={styles.reviewTitleWrap}>
-                    <Text style={styles.reviewTitle}>{review.driver?.fullName || 'Driver not available'}</Text>
-                    <Text style={styles.reviewMeta}>
-                      {formatVehicle(review)} | {review.driver?.vehicle?.plateNumber || 'No plate'}
-                    </Text>
-                  </View>
-                  <StatusPill status={review.status} />
-                </View>
-
-                <View style={styles.ratingRow}>
-                  <StarStrip rating={review.rating} />
-                  <Text style={styles.ratingText}>{review.rating}.0 rating</Text>
-                </View>
-
-                <Text style={styles.reviewComment}>{review.comment || 'No written comment.'}</Text>
-
-                <View style={styles.detailBlock}>
-                  <InfoLine icon="person-outline" label="Passenger" value={review.passenger?.fullName || 'Passenger not available'} />
-                  <InfoLine icon="calendar-outline" label="Submitted" value={formatDate(review.submittedAt || review.reviewedAt)} />
-                  <InfoLine icon="flag-outline" label="Completed" value={formatDate(review.completedAt)} />
-                </View>
-
-                <View style={styles.actionRow}>
-                  <Pressable
-                    style={[styles.rejectButton, updatingRideId === review.rideId ? styles.buttonDisabled : null]}
-                    disabled={updatingRideId === review.rideId}
-                    onPress={() => updateReviewStatus(review.rideId, 'rejected')}>
-                    <Text style={styles.rejectButtonText}>Reject</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.reopenButton, updatingRideId === review.rideId ? styles.buttonDisabled : null]}
-                    disabled={updatingRideId === review.rideId}
-                    onPress={() => updateReviewStatus(review.rideId, 'review')}>
-                    <Text style={styles.reopenButtonText}>Review</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.approveButton, updatingRideId === review.rideId ? styles.buttonDisabled : null]}
-                    disabled={updatingRideId === review.rideId}
-                    onPress={() => updateReviewStatus(review.rideId, 'approved')}>
-                    <Text style={styles.approveButtonText}>Approve</Text>
-                  </Pressable>
-                </View>
-              </View>
+              <ReviewRow
+                key={review.rideId}
+                review={review}
+                selected={review.rideId === selectedReview?.rideId}
+                isUpdating={updatingReviewId === review.rideId}
+                onPress={() => setSelectedReviewId(review.rideId)}
+                onApprove={() => updateReviewStatus(review, 'approved')}
+                onReject={() => updateReviewStatus(review, 'rejected')}
+                onReview={() => updateReviewStatus(review, 'review')}
+              />
             ))}
           </View>
         )}
+
+        {feedback ? (
+          <View style={[styles.feedbackCard, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}>
+            <Ionicons name="information-circle-outline" size={17} color={palette.accent} />
+            <Text style={[styles.feedbackText, { color: palette.textPrimary }]}>{feedback}</Text>
+          </View>
+        ) : null}
       </RefreshableScrollView>
     </SafeAreaView>
   );
 }
 
-function SummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-}) {
+function MetricCard({ label, value, icon }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
-    <View style={styles.summaryCard}>
-      <Ionicons name={icon} size={17} color={teal} />
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
+    <View style={[styles.metricCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <Ionicons name={icon} size={17} color={palette.accent} />
+      <Text style={[styles.metricValue, { color: palette.textPrimary }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: palette.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
-function StatusPill({ status }: { status: AdminRideReview['status'] }) {
+function ReviewRow({
+  review,
+  selected,
+  isUpdating,
+  onPress,
+  onApprove,
+  onReject,
+  onReview,
+}: {
+  review: AdminRideReview;
+  selected: boolean;
+  isUpdating: boolean;
+  onPress: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+  onReview: () => void;
+}) {
+  return (
+    <Pressable
+      style={[
+        styles.reviewRow,
+        {
+          backgroundColor: palette.card,
+          borderColor: selected ? palette.accent : palette.border,
+        },
+      ]}
+      onPress={onPress}>
+      <View style={styles.reviewTopRow}>
+        <View style={styles.reviewMain}>
+          <View style={[styles.reviewIcon, { backgroundColor: palette.warningSoft }]}>
+            <Ionicons name="star" size={18} color={palette.warning} />
+          </View>
+          <View style={styles.reviewTextWrap}>
+            <Text style={[styles.reviewName, { color: palette.textPrimary }]} numberOfLines={1}>
+              {review.driver?.fullName || 'Driver not available'}
+            </Text>
+            <Text style={[styles.reviewSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
+              {review.passenger?.fullName || 'Passenger'} | {formatVehicle(review)}
+            </Text>
+          </View>
+        </View>
+
+        <StatusBadge status={review.status} />
+      </View>
+
+      <View style={styles.reviewFooter}>
+        <View style={styles.ratingMiniWrap}>
+          <StarStrip rating={review.rating} />
+          <Text style={[styles.ratingMiniText, { color: palette.warning }]}>{review.rating}.0</Text>
+        </View>
+
+        <View style={styles.rowButtons}>
+          <Pressable
+            style={[styles.rowActionButton, { backgroundColor: palette.dangerSoft, borderColor: '#F1D6D6' }, isUpdating ? styles.disabledButton : null]}
+            disabled={isUpdating}
+            onPress={onReject}>
+            <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
+            <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Reject</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.rowActionButton, { backgroundColor: palette.input, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
+            disabled={isUpdating}
+            onPress={onReview}>
+            <Ionicons name="refresh-outline" size={15} color={palette.textSecondary} />
+            <Text style={[styles.rowNeutralText, { color: palette.textSecondary }]}>Review</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.rowActionButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
+            disabled={isUpdating}
+            onPress={onApprove}>
+            <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
+            <Text style={[styles.rowEditText, { color: palette.accent }]}>Approve</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function StatusBadge({ status }: { status: AdminRideReview['status'] }) {
   const config = {
-    review: { label: 'Pending', bg: '#FFF8EC', text: '#D97706' },
-    approved: { label: 'Approved', bg: '#E7F5F3', text: teal },
-    rejected: { label: 'Rejected', bg: '#FFF4F4', text: '#C13B3B' },
+    review: { label: 'Pending', bg: palette.warningSoft, text: palette.warning },
+    approved: { label: 'Approved', bg: palette.successSoft, text: palette.success },
+    rejected: { label: 'Rejected', bg: palette.dangerSoft, text: palette.danger },
   }[status];
 
   return (
-    <View style={[styles.statusPill, { backgroundColor: config.bg }]}>
-      <Text style={[styles.statusPillText, { color: config.text }]}>{config.label}</Text>
+    <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
+      <Text style={[styles.statusText, { color: config.text }]} numberOfLines={1}>{config.label}</Text>
     </View>
   );
 }
@@ -293,7 +432,7 @@ function StarStrip({ rating }: { rating: number }) {
         <Ionicons
           key={star}
           name={star <= rating ? 'star' : 'star-outline'}
-          size={15}
+          size={14}
           color={star <= rating ? '#F5A623' : '#B7C7C5'}
         />
       ))}
@@ -301,20 +440,20 @@ function StarStrip({ rating }: { rating: number }) {
   );
 }
 
-function InfoLine({
-  icon,
+function InfoTile({
   label,
   value,
+  icon,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  icon: keyof typeof Ionicons.glyphMap;
 }) {
   return (
-    <View style={styles.infoLine}>
-      <Ionicons name={icon} size={15} color={teal} />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+    <View style={[styles.infoTile, { backgroundColor: palette.input, borderColor: palette.border }]}>
+      <Ionicons name={icon} size={16} color={palette.accent} />
+      <Text style={[styles.infoTileLabel, { color: palette.textSecondary }]}>{label}</Text>
+      <Text style={[styles.infoTileValue, { color: palette.textPrimary }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -322,279 +461,359 @@ function InfoLine({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F4F8F7',
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
   },
   container: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 34,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  header: {
+  topBar: {
+    minHeight: 42,
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   backButton: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D9E9E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  topBarTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  topBarSpacer: {
+    width: 40,
+  },
+  heroCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  heroIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTextWrap: {
+  heroIdentity: {
     flex: 1,
   },
-  eyebrow: {
-    color: teal,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    marginBottom: 2,
+  heroName: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 4,
   },
-  pageTitle: {
-    color: '#123532',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  pageSubtitle: {
-    color: '#617C79',
+  heroSubline: {
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 19,
-    marginTop: 4,
   },
-  summaryRow: {
+  heroBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  heroHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  metricGrid: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  summaryCard: {
+  metricCard: {
     flex: 1,
+    minHeight: 76,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    padding: 11,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 3,
   },
-  summaryValue: {
-    color: '#123532',
+  metricValue: {
     fontSize: 17,
-    fontWeight: '900',
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
-  summaryLabel: {
-    color: '#617C79',
+  metricLabel: {
     fontSize: 11,
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  groupCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 14,
   },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 12,
   },
   filterButton: {
     minHeight: 38,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterButtonActive: {
-    backgroundColor: teal,
-    borderColor: teal,
-  },
   filterText: {
-    color: '#617C79',
     fontSize: 13,
     fontWeight: '800',
   },
-  filterTextActive: {
-    color: '#FFFFFF',
+  detailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
   },
-  feedbackCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#E7F5F3',
-    padding: 12,
+  detailsIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  detailsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  detailsHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  selectedRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  feedbackText: {
+  selectedRatingText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  selectedComment: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  selectedInfoGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  infoTile: {
     flex: 1,
-    color: '#123532',
+    minHeight: 72,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+    gap: 3,
+  },
+  infoTileLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  infoTileValue: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  loadingCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
     fontSize: 13,
     fontWeight: '700',
   },
-  stateCard: {
-    borderRadius: 18,
+  emptyCard: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
     padding: 18,
     alignItems: 'center',
-    gap: 10,
   },
-  stateText: {
-    color: '#617C79',
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  stateErrorText: {
-    color: '#C13B3B',
-    fontSize: 14,
-    fontWeight: '700',
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  emptyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
     textAlign: 'center',
   },
   reviewList: {
-    gap: 12,
+    gap: 10,
+    marginBottom: 12,
   },
-  reviewCard: {
-    borderRadius: 18,
+  reviewRow: {
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    gap: 12,
+    padding: 12,
+    gap: 10,
   },
   reviewTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     gap: 12,
   },
-  reviewTitleWrap: {
+  reviewMain: {
     flex: 1,
-  },
-  reviewTitle: {
-    color: '#123532',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  reviewMeta: {
-    color: '#617C79',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 3,
-  },
-  statusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+  },
+  reviewIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reviewName: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  reviewSubtext: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  statusBadge: {
+    minHeight: 28,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  reviewFooter: {
+    gap: 10,
+  },
+  ratingMiniWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
   starRow: {
     flexDirection: 'row',
     gap: 2,
   },
-  ratingText: {
-    color: '#9A6200',
+  ratingMiniText: {
     fontSize: 12,
     fontWeight: '900',
   },
-  reviewComment: {
-    color: '#123532',
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
-    backgroundColor: '#F7FBFA',
-    borderRadius: 14,
+  rowButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  rowActionButton: {
+    minHeight: 34,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: '#D9E9E6',
-    padding: 11,
-  },
-  detailBlock: {
-    gap: 7,
-  },
-  infoLine: {
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    justifyContent: 'center',
+    gap: 5,
   },
-  infoLabel: {
-    color: '#617C79',
+  rowEditText: {
     fontSize: 12,
     fontWeight: '800',
-    width: 76,
   },
-  infoValue: {
-    flex: 1,
-    color: '#123532',
+  rowDeleteText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 9,
-    flexWrap: 'wrap',
+  rowNeutralText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
-  rejectButton: {
-    minHeight: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F1D6D6',
-    backgroundColor: '#FFF4F4',
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rejectButtonText: {
-    color: '#C13B3B',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  reopenButton: {
-    minHeight: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#F7FBFA',
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reopenButtonText: {
-    color: '#617C79',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  approveButton: {
-    minHeight: 40,
-    borderRadius: 12,
-    backgroundColor: teal,
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  approveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  buttonDisabled: {
+  disabledButton: {
     opacity: 0.55,
+  },
+  feedbackCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  feedbackText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
