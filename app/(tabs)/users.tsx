@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
@@ -69,49 +70,33 @@ export default function AdminUsersScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<SelectedDriverDocument | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadManagementData = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage(null);
 
-    const loadManagementData = async () => {
-      setLoading(true);
-      setErrorMessage(null);
+    try {
+      const [usersResponse, driversResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/auth/users`),
+        fetch(`${API_BASE_URL}/driver-auth/drivers`),
+      ]);
 
-      try {
-        const [usersResponse, driversResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/auth/users`),
-          fetch(`${API_BASE_URL}/driver-auth/drivers`),
-        ]);
+      const [{ users }, { drivers }] = await Promise.all([
+        parseApiResponse<{ users: PassengerUser[] }>(usersResponse),
+        parseApiResponse<{ drivers: DriverUser[] }>(driversResponse),
+      ]);
 
-        const [{ users }, { drivers }] = await Promise.all([
-          parseApiResponse<{ users: PassengerUser[] }>(usersResponse),
-          parseApiResponse<{ drivers: DriverUser[] }>(driversResponse),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPassengerUsers(users);
-        setDriverUsers(drivers);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load management data.');
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadManagementData();
-
-    return () => {
-      isMounted = false;
-    };
+      setPassengerUsers(users);
+      setDriverUsers(drivers);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load management data.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadManagementData();
+  }, [loadManagementData]);
 
   const pendingDriverUsers = useMemo(
     () =>
@@ -134,7 +119,10 @@ export default function AdminUsersScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <RefreshableScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        onRefreshPage={loadManagementData}>
         <Text style={styles.pageTitle}>User & Driver Management</Text>
         <Text style={styles.pageSubtitle}>
           Review rider activity, manage account trust, and process driver approval queues from one place.
@@ -279,7 +267,7 @@ export default function AdminUsersScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </RefreshableScrollView>
 
       <DocumentPreviewModal
         selectedDocument={selectedDocument}

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,12 +12,14 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
+
 type ProfileSection = {
   title: string;
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
   badge?: string;
-  route?: '/profile/admin-details' | '/profile/account-security' | '/users';
+  route?: '/profile/admin-details' | '/profile/promotions' | '/profile/account-security' | '/users';
 };
 
 const palette = {
@@ -51,6 +52,7 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     title: 'Promotion & Discount Management',
     subtitle: 'Manage offers, promo rules, and platform discount campaigns',
     icon: 'pricetags-outline',
+    route: '/profile/promotions',
   },
   {
     title: 'User Management',
@@ -84,7 +86,7 @@ export default function AdminProfileScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <RefreshableScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.profileHead}>
             <View style={[styles.avatarCircle, { backgroundColor: palette.accentMuted, borderColor: palette.border }]}>
@@ -179,7 +181,7 @@ export default function AdminProfileScreen() {
           <Text style={[styles.footerTop, { color: palette.primaryText }]}>NexGO Admin</Text>
           <Text style={[styles.footerBottom, { color: palette.secondaryText }]}>Version 1.0.0</Text>
         </View>
-      </ScrollView>
+      </RefreshableScrollView>
     </SafeAreaView>
   );
 }

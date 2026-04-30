@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const palette = {
@@ -80,40 +81,26 @@ export default function AdminDetailsScreen() {
     setIsEditModalVisible(false);
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadAdminProfile = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage(null);
 
-    const loadAdminProfile = async () => {
-      setLoading(true);
-      setErrorMessage(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/profile`);
+      const data = await parseApiResponse<{ adminProfile: AdminProfile }>(response);
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/admin/profile`);
-        const data = await parseApiResponse<{ adminProfile: AdminProfile }>(response);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setSavedAdmin(data.adminProfile);
-        setForm(data.adminProfile);
-      } catch (error) {
-        if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : 'Unable to load admin details.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadAdminProfile();
-
-    return () => {
-      isMounted = false;
-    };
+      setSavedAdmin(data.adminProfile);
+      setForm(data.adminProfile);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load admin details.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadAdminProfile();
+  }, [loadAdminProfile]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -153,10 +140,11 @@ export default function AdminDetailsScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <RefreshableScrollView
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          onRefreshPage={loadAdminProfile}>
           <View style={[styles.topBar, { borderColor: palette.border }]}>
             <Pressable style={[styles.backButton, { borderColor: palette.border }]} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
@@ -250,7 +238,7 @@ export default function AdminDetailsScreen() {
               </View>
             )}
           </View>
-        </ScrollView>
+        </RefreshableScrollView>
       </KeyboardAvoidingView>
 
       <Modal visible={isEditModalVisible} transparent animationType="fade" onRequestClose={closeEditModal}>

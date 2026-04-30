@@ -4,7 +4,6 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StatusBar as RNStatusBar,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const palette = {
@@ -79,7 +79,7 @@ export default function AccountSecurityScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <RefreshableScrollView
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
@@ -164,7 +164,7 @@ export default function AccountSecurityScreen() {
               <Text style={styles.primaryButtonText}>{saving ? 'Updating...' : 'Update Password'}</Text>
             </Pressable>
           </View>
-        </ScrollView>
+        </RefreshableScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
