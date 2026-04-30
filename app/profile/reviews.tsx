@@ -61,6 +61,24 @@ type AdminRideReview = {
   } | null;
 };
 
+type AdminReviewsResponse = {
+  reviews?: AdminRideReview[];
+};
+
+async function parseReviewsResponse(response: Response) {
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('Review manager backend route is not active. Restart the backend server and refresh.');
+    }
+
+    throw new Error(data?.message || 'Unable to load review queue.');
+  }
+
+  return data as AdminReviewsResponse;
+}
+
 const FILTERS: { label: string; value: ReviewStatus }[] = [
   { label: 'Pending', value: 'review' },
   { label: 'Approved', value: 'approved' },
@@ -109,24 +127,25 @@ export default function AdminReviewManagerScreen() {
     setIsLoadingReviews(true);
 
     try {
-      const [response, summaryResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`),
-        fetch(`${API_BASE_URL}/rides/admin/reviews?status=all`),
-      ]);
-      const [data, summaryData] = await Promise.all([
-        parseApiResponse<{ reviews: AdminRideReview[] }>(response),
-        parseApiResponse<{ reviews: AdminRideReview[] }>(summaryResponse),
-      ]);
+      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`);
+      const data = await parseReviewsResponse(response);
       const savedReviews = data.reviews ?? [];
 
       setReviews(savedReviews);
-      setSummaryReviews(summaryData.reviews ?? savedReviews);
       setSelectedReviewId((current) => {
         if (savedReviews.some((review) => review.rideId === current)) {
           return current;
         }
         return savedReviews[0]?.rideId ?? '';
       });
+
+      try {
+        const summaryResponse = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=all`);
+        const summaryData = await parseReviewsResponse(summaryResponse);
+        setSummaryReviews(summaryData.reviews ?? savedReviews);
+      } catch {
+        setSummaryReviews(savedReviews);
+      }
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to load review queue.');
     } finally {
@@ -138,7 +157,7 @@ export default function AdminReviewManagerScreen() {
     void loadReviews();
   }, [loadReviews]);
 
-  const updateReviewStatus = async (review: AdminRideReview, status: Exclude<ReviewStatus, 'all'>) => {
+  const updateReviewStatus = async (review: AdminRideReview, status: 'approved' | 'rejected') => {
     if (updatingReviewId) return;
 
     setUpdatingReviewId(review.rideId);
@@ -150,15 +169,25 @@ export default function AdminReviewManagerScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      await parseApiResponse<{ review: AdminRideReview; message?: string }>(response);
+      const data = await parseApiResponse<{ review: AdminRideReview; message?: string }>(response);
+      const updatedReview = data.review;
+
+      setReviews((current) =>
+        current.map((item) => (item.rideId === updatedReview.rideId ? updatedReview : item))
+      );
+      setSummaryReviews((current) => {
+        if (current.some((item) => item.rideId === updatedReview.rideId)) {
+          return current.map((item) => (item.rideId === updatedReview.rideId ? updatedReview : item));
+        }
+
+        return [updatedReview, ...current];
+      });
+      setSelectedReviewId(updatedReview.rideId);
       setFeedback(
         status === 'approved'
           ? 'Review approved for public driver profile.'
-          : status === 'rejected'
-            ? 'Review rejected and hidden from public profile.'
-            : 'Review returned to pending queue.'
+          : 'Review marked as rejected.'
       );
-      await loadReviews();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to update review status.');
     } finally {
@@ -304,7 +333,6 @@ export default function AdminReviewManagerScreen() {
                 onPress={() => setSelectedReviewId(review.rideId)}
                 onApprove={() => updateReviewStatus(review, 'approved')}
                 onReject={() => updateReviewStatus(review, 'rejected')}
-                onReview={() => updateReviewStatus(review, 'review')}
               />
             ))}
           </View>
@@ -338,7 +366,6 @@ function ReviewRow({
   onPress,
   onApprove,
   onReject,
-  onReview,
 }: {
   review: AdminRideReview;
   selected: boolean;
@@ -346,7 +373,6 @@ function ReviewRow({
   onPress: () => void;
   onApprove: () => void;
   onReject: () => void;
-  onReview: () => void;
 }) {
   return (
     <Pressable
@@ -389,14 +415,6 @@ function ReviewRow({
             onPress={onReject}>
             <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
             <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Reject</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.rowActionButton, { backgroundColor: palette.input, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
-            disabled={isUpdating}
-            onPress={onReview}>
-            <Ionicons name="refresh-outline" size={15} color={palette.textSecondary} />
-            <Text style={[styles.rowNeutralText, { color: palette.textSecondary }]}>Review</Text>
           </Pressable>
 
           <Pressable
@@ -833,10 +851,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   rowDeleteText: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  rowNeutralText: {
     fontSize: 12,
     fontWeight: '900',
   },
