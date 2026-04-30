@@ -86,20 +86,6 @@ const FILTERS: { label: string; value: ReviewStatus }[] = [
   { label: 'All', value: 'all' },
 ];
 
-const formatDate = (iso?: string | null) => {
-  if (!iso) return 'Not available';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Not available';
-
-  return date.toLocaleDateString('en-LK', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
 const formatVehicle = (review: AdminRideReview) => {
   const vehicle = review.driver?.vehicle;
   const name = [vehicle?.make, vehicle?.model].filter(Boolean).join(' ');
@@ -113,12 +99,9 @@ export default function AdminReviewManagerScreen() {
   const [activeFilter, setActiveFilter] = useState<ReviewStatus>('review');
   const [reviews, setReviews] = useState<AdminRideReview[]>([]);
   const [summaryReviews, setSummaryReviews] = useState<AdminRideReview[]>([]);
-  const [selectedReviewId, setSelectedReviewId] = useState('');
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [updatingReviewId, setUpdatingReviewId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-
-  const selectedReview = reviews.find((review) => review.rideId === selectedReviewId) ?? reviews[0];
 
   const totals = useMemo(() => {
     const pendingCount = summaryReviews.filter((review) => review.status === 'review').length;
@@ -129,7 +112,6 @@ export default function AdminReviewManagerScreen() {
   const loadReviews = useCallback(async () => {
     setIsLoadingReviews(true);
     setReviews([]);
-    setSelectedReviewId('');
 
     try {
       const response = await fetch(buildReviewsUrl(activeFilter), {
@@ -139,12 +121,6 @@ export default function AdminReviewManagerScreen() {
       const savedReviews = data.reviews ?? [];
 
       setReviews(savedReviews);
-      setSelectedReviewId((current) => {
-        if (savedReviews.some((review) => review.rideId === current)) {
-          return current;
-        }
-        return savedReviews[0]?.rideId ?? '';
-      });
 
       try {
         const summaryResponse = await fetch(buildReviewsUrl('all'), {
@@ -199,7 +175,6 @@ export default function AdminReviewManagerScreen() {
 
         return [updatedReview, ...current];
       });
-      setSelectedReviewId(updatedReview.rideId);
       setFeedback(
         status === 'approved'
           ? 'Review approved for public driver profile.'
@@ -286,42 +261,6 @@ export default function AdminReviewManagerScreen() {
           </View>
         </View>
 
-        {selectedReview ? (
-          <>
-            <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>SELECTED REVIEW</Text>
-            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={styles.detailsHeader}>
-                <View style={[styles.detailsIcon, { backgroundColor: palette.accentSoft }]}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.accent} />
-                </View>
-                <View style={styles.detailsHeaderText}>
-                  <Text style={[styles.detailsTitle, { color: palette.textPrimary }]}>
-                    {selectedReview.driver?.fullName || 'Driver not available'}
-                  </Text>
-                  <Text style={[styles.detailsHint, { color: palette.textSecondary }]}>
-                    {formatVehicle(selectedReview)} | {selectedReview.driver?.vehicle?.plateNumber || 'No plate'}
-                  </Text>
-                </View>
-                <StatusBadge status={selectedReview.status} />
-              </View>
-
-              <View style={styles.selectedRatingRow}>
-                <StarStrip rating={selectedReview.rating} />
-                <Text style={[styles.selectedRatingText, { color: palette.warning }]}>{selectedReview.rating}.0 rating</Text>
-              </View>
-
-              <Text style={[styles.selectedComment, { color: palette.textPrimary, backgroundColor: palette.input, borderColor: palette.border }]}>
-                {selectedReview.comment || 'No written comment.'}
-              </Text>
-
-              <View style={styles.selectedInfoGrid}>
-                <InfoTile label="Passenger" value={selectedReview.passenger?.fullName || 'Passenger not available'} icon="person-outline" />
-                <InfoTile label="Submitted" value={formatDate(selectedReview.submittedAt || selectedReview.reviewedAt)} icon="calendar-outline" />
-              </View>
-            </View>
-          </>
-        ) : null}
-
         <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>REVIEWS</Text>
 
         {isLoadingReviews ? (
@@ -345,9 +284,7 @@ export default function AdminReviewManagerScreen() {
               <ReviewRow
                 key={review.rideId}
                 review={review}
-                selected={review.rideId === selectedReview?.rideId}
                 isUpdating={updatingReviewId === review.rideId}
-                onPress={() => setSelectedReviewId(review.rideId)}
                 onApprove={() => updateReviewStatus(review, 'approved')}
                 onReject={() => updateReviewStatus(review, 'rejected')}
               />
@@ -378,16 +315,12 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
 
 function ReviewRow({
   review,
-  selected,
   isUpdating,
-  onPress,
   onApprove,
   onReject,
 }: {
   review: AdminRideReview;
-  selected: boolean;
   isUpdating: boolean;
-  onPress: () => void;
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -397,10 +330,10 @@ function ReviewRow({
         styles.reviewRow,
         {
           backgroundColor: palette.card,
-          borderColor: selected ? palette.accent : palette.border,
+          borderColor: palette.border,
         },
       ]}
-      onPress={onPress}>
+    >
       <View style={styles.reviewTopRow}>
         <View style={styles.reviewMain}>
           <View style={[styles.reviewIcon, { backgroundColor: palette.warningSoft }]}>
@@ -472,24 +405,6 @@ function StarStrip({ rating }: { rating: number }) {
           color={star <= rating ? '#F5A623' : '#B7C7C5'}
         />
       ))}
-    </View>
-  );
-}
-
-function InfoTile({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}) {
-  return (
-    <View style={[styles.infoTile, { backgroundColor: palette.input, borderColor: palette.border }]}>
-      <Ionicons name={icon} size={16} color={palette.accent} />
-      <Text style={[styles.infoTileLabel, { color: palette.textSecondary }]}>{label}</Text>
-      <Text style={[styles.infoTileValue, { color: palette.textPrimary }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -657,75 +572,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     textAlign: 'center',
-  },
-  detailsHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
-  },
-  detailsIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailsHeaderText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  detailsTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  detailsHint: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  selectedRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  selectedRatingText: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  selectedComment: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  selectedInfoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  infoTile: {
-    flex: 1,
-    minWidth: 145,
-    minHeight: 72,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 10,
-    gap: 3,
-  },
-  infoTileLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  infoTileValue: {
-    fontSize: 12,
-    fontWeight: '800',
   },
   loadingCard: {
     borderRadius: 14,
