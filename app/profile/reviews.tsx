@@ -91,6 +91,7 @@ const formatVehicle = (review: AdminRideReview) => {
 export default function AdminReviewManagerScreen() {
   const [activeFilter, setActiveFilter] = useState<ReviewStatus>('review');
   const [reviews, setReviews] = useState<AdminRideReview[]>([]);
+  const [summaryReviews, setSummaryReviews] = useState<AdminRideReview[]>([]);
   const [selectedReviewId, setSelectedReviewId] = useState('');
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [updatingReviewId, setUpdatingReviewId] = useState<string | null>(null);
@@ -99,20 +100,27 @@ export default function AdminReviewManagerScreen() {
   const selectedReview = reviews.find((review) => review.rideId === selectedReviewId) ?? reviews[0];
 
   const totals = useMemo(() => {
-    const pendingCount = reviews.filter((review) => review.status === 'review').length;
-    const approvedCount = reviews.filter((review) => review.status === 'approved').length;
-    return { pendingCount, approvedCount, totalCount: reviews.length };
-  }, [reviews]);
+    const pendingCount = summaryReviews.filter((review) => review.status === 'review').length;
+    const approvedCount = summaryReviews.filter((review) => review.status === 'approved').length;
+    return { pendingCount, approvedCount, totalCount: summaryReviews.length };
+  }, [summaryReviews]);
 
   const loadReviews = useCallback(async () => {
     setIsLoadingReviews(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`);
-      const data = await parseApiResponse<{ reviews: AdminRideReview[] }>(response);
+      const [response, summaryResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/rides/admin/reviews?status=${activeFilter}`),
+        fetch(`${API_BASE_URL}/rides/admin/reviews?status=all`),
+      ]);
+      const [data, summaryData] = await Promise.all([
+        parseApiResponse<{ reviews: AdminRideReview[] }>(response),
+        parseApiResponse<{ reviews: AdminRideReview[] }>(summaryResponse),
+      ]);
       const savedReviews = data.reviews ?? [];
 
       setReviews(savedReviews);
+      setSummaryReviews(summaryData.reviews ?? savedReviews);
       setSelectedReviewId((current) => {
         if (savedReviews.some((review) => review.rideId === current)) {
           return current;
@@ -142,18 +150,7 @@ export default function AdminReviewManagerScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      const data = await parseApiResponse<{ review: AdminRideReview; message?: string }>(response);
-      const updatedReview = data.review;
-
-      setReviews((current) => {
-        if (activeFilter !== 'all' && updatedReview.status !== activeFilter) {
-          return current.filter((item) => item.rideId !== updatedReview.rideId);
-        }
-
-        return current.map((item) => (item.rideId === updatedReview.rideId ? updatedReview : item));
-      });
-
-      setSelectedReviewId((current) => (current === updatedReview.rideId ? updatedReview.rideId : current));
+      await parseApiResponse<{ review: AdminRideReview; message?: string }>(response);
       setFeedback(
         status === 'approved'
           ? 'Review approved for public driver profile.'
@@ -161,6 +158,7 @@ export default function AdminReviewManagerScreen() {
             ? 'Review rejected and hidden from public profile.'
             : 'Review returned to pending queue.'
       );
+      await loadReviews();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to update review status.');
     } finally {
@@ -209,12 +207,15 @@ export default function AdminReviewManagerScreen() {
         <View style={styles.metricGrid}>
           <MetricCard label="Pending" value={String(totals.pendingCount)} icon="time-outline" />
           <MetricCard label="Approved" value={String(totals.approvedCount)} icon="checkmark-circle-outline" />
-          <MetricCard label="Visible" value={String(totals.totalCount)} icon="list-outline" />
+          <MetricCard label="Total" value={String(totals.totalCount)} icon="list-outline" />
         </View>
 
-        <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>REVIEW FILTER</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, styles.sectionTitleInline, { color: palette.textSecondary }]}>REVIEW FILTER</Text>
+          <Text style={[styles.sectionHint, { color: palette.textSecondary }]}>Manage review queue</Text>
+        </View>
 
-        <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <View style={[styles.groupCard, styles.filterCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.filterRow}>
             {FILTERS.map((filter) => {
               const selected = activeFilter === filter.value;
@@ -493,21 +494,22 @@ const styles = StyleSheet.create({
     height: 38,
   },
   heroCard: {
-    borderRadius: 22,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginBottom: 12,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   heroIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -516,14 +518,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   heroSubline: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 19,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
   },
   heroBadge: {
     alignSelf: 'flex-start',
@@ -531,30 +533,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    marginBottom: 8,
   },
   heroBadgeText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   heroHint: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
     lineHeight: 18,
   },
   metricGrid: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   metricCard: {
     flex: 1,
-    minHeight: 76,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 11,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
@@ -575,28 +577,51 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginBottom: 6,
   },
+  sectionHeaderRow: {
+    minHeight: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 6,
+  },
+  sectionTitleInline: {
+    marginBottom: 0,
+  },
+  sectionHint: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   groupCard: {
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
+    overflow: 'hidden',
+    padding: 12,
+    marginBottom: 12,
+  },
+  filterCard: {
+    padding: 8,
   },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 7,
   },
   filterButton: {
-    minHeight: 38,
+    flexGrow: 1,
+    flexBasis: '47%',
+    minWidth: 126,
+    minHeight: 34,
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '800',
+    textAlign: 'center',
   },
   detailsHeader: {
     flexDirection: 'row',
@@ -647,10 +672,12 @@ const styles = StyleSheet.create({
   },
   selectedInfoGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   infoTile: {
     flex: 1,
+    minWidth: 145,
     minHeight: 72,
     borderRadius: 14,
     borderWidth: 1,
@@ -722,6 +749,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minWidth: 0,
   },
   reviewIcon: {
     width: 38,
@@ -757,12 +785,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   reviewFooter: {
-    gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EAF1EF',
+    flexWrap: 'wrap',
   },
   ratingMiniWrap: {
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+    flexShrink: 0,
   },
   starRow: {
     flexDirection: 'row',
@@ -775,12 +812,15 @@ const styles = StyleSheet.create({
   rowButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
+    flexShrink: 1,
   },
   rowActionButton: {
+    minWidth: 84,
     minHeight: 34,
-    borderRadius: 11,
+    borderRadius: 10,
     borderWidth: 1,
     paddingHorizontal: 10,
     flexDirection: 'row',
@@ -790,15 +830,15 @@ const styles = StyleSheet.create({
   },
   rowEditText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   rowDeleteText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   rowNeutralText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   disabledButton: {
     opacity: 0.55,
