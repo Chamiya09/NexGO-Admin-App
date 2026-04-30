@@ -324,6 +324,8 @@ function ReviewRow({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const canModerate = review.status === 'review';
+
   return (
     <Pressable
       style={[
@@ -358,23 +360,25 @@ function ReviewRow({
           <Text style={[styles.ratingMiniText, { color: palette.warning }]}>{review.rating}.0</Text>
         </View>
 
-        <View style={styles.rowButtons}>
-          <Pressable
-            style={[styles.rowActionButton, { backgroundColor: palette.dangerSoft, borderColor: '#F1D6D6' }, isUpdating ? styles.disabledButton : null]}
-            disabled={isUpdating}
-            onPress={onReject}>
-            <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
-            <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Reject</Text>
-          </Pressable>
+        {canModerate ? (
+          <View style={styles.rowButtons}>
+            <Pressable
+              style={[styles.rowActionButton, { backgroundColor: palette.dangerSoft, borderColor: '#F1D6D6' }, isUpdating ? styles.disabledButton : null]}
+              disabled={isUpdating}
+              onPress={onReject}>
+              <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
+              <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Reject</Text>
+            </Pressable>
 
-          <Pressable
-            style={[styles.rowActionButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
-            disabled={isUpdating}
-            onPress={onApprove}>
-            <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
-            <Text style={[styles.rowEditText, { color: palette.accent }]}>Approve</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={[styles.rowActionButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
+              disabled={isUpdating}
+              onPress={onApprove}>
+              <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
+              <Text style={[styles.rowEditText, { color: palette.accent }]}>Approve</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
