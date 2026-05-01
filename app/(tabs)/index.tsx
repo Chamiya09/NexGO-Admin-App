@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, parseApiResponse } from '@/lib/api';
@@ -240,14 +240,20 @@ export default function AdminDashboardScreen() {
                 <MapView
                   ref={mapRef}
                   style={styles.liveMap}
-                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                  provider={PROVIDER_DEFAULT}
                   initialRegion={mapRegion}
+                  mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
                   scrollEnabled
                   zoomEnabled
                   rotateEnabled
                   pitchEnabled>
+                  <UrlTile
+                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maximumZ={19}
+                    flipY={false}
+                  />
                   {visibleMapDrivers.map((driver) => {
                     const vehicleCategory = getVehicleCategory(driver);
 
