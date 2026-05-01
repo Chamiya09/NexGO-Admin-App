@@ -51,6 +51,7 @@ type DriverMapRecord = DriverUser & DriverLocation;
 export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
+  const isMedium = width >= 720;
   const chartHeight = 220;
   const maxValue = Math.max(...weeklyRides);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
@@ -210,47 +211,55 @@ export default function AdminDashboardScreen() {
               <Text style={[styles.liveMapStateText, styles.liveMapErrorText]}>{mapErrorMessage}</Text>
             </View>
           ) : (
-            <View style={styles.liveMapShell}>
-              <MapView
-                style={styles.liveMap}
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                initialRegion={initialRegion}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}>
-                {trackedDrivers.map((driver) => (
-                  <Marker
-                    key={driver.id}
-                    coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                    title={driver.fullName}
-                    description={`${formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
-                    <View style={[styles.driverPin, !driver.isOnline ? styles.driverPinOffline : null]}>
-                      <Ionicons name="car-sport" size={13} color="#FFFFFF" />
-                    </View>
-                  </Marker>
-                ))}
-              </MapView>
+            <View style={[styles.liveMapBody, isMedium ? styles.liveMapBodyWide : null]}>
+              <View style={styles.liveMapShell}>
+                <MapView
+                  style={styles.liveMap}
+                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                  initialRegion={initialRegion}
+                  showsUserLocation={false}
+                  showsMyLocationButton={false}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}>
+                  {trackedDrivers.map((driver) => (
+                    <Marker
+                      key={driver.id}
+                      coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
+                      title={driver.fullName}
+                      description={`${formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                      <View style={[styles.driverPin, !driver.isOnline ? styles.driverPinOffline : null]}>
+                        <Ionicons name="car-sport" size={13} color="#FFFFFF" />
+                      </View>
+                    </Marker>
+                  ))}
+                </MapView>
 
-              <View style={styles.liveMapStats}>
+                {trackedDrivers.length === 0 ? (
+                  <View style={styles.liveMapEmpty}>
+                    <Ionicons name="locate-outline" size={20} color={teal} />
+                    <Text style={styles.liveMapEmptyTitle}>Waiting for live driver locations</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={[styles.liveMapStats, isMedium ? styles.liveMapStatsWide : null]}>
                 <View style={styles.liveMapStat}>
+                  <View style={styles.liveMapStatIcon}>
+                    <Ionicons name="navigate-outline" size={15} color={teal} />
+                  </View>
                   <Text style={styles.liveMapStatValue}>{trackedDrivers.length}</Text>
                   <Text style={styles.liveMapStatLabel}>Tracked</Text>
                 </View>
-                <View style={styles.liveMapStatDivider} />
                 <View style={styles.liveMapStat}>
+                  <View style={styles.liveMapStatIcon}>
+                    <Ionicons name="radio-outline" size={15} color={teal} />
+                  </View>
                   <Text style={styles.liveMapStatValue}>{onlineDrivers.length}</Text>
                   <Text style={styles.liveMapStatLabel}>Online</Text>
                 </View>
               </View>
-
-              {trackedDrivers.length === 0 ? (
-                <View style={styles.liveMapEmpty}>
-                  <Text style={styles.liveMapEmptyTitle}>Waiting for live driver locations</Text>
-                </View>
-              ) : null}
             </View>
           )}
         </View>
@@ -429,7 +438,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
-    padding: 16,
+    padding: 18,
     marginBottom: 18,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
@@ -441,8 +450,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   liveMapTitleGroup: {
     flex: 1,
@@ -456,6 +466,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E7F5F3',
     paddingHorizontal: 10,
     paddingVertical: 6,
+    flexShrink: 0,
   },
   liveMapBadgeText: {
     color: teal,
@@ -463,7 +474,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   liveMapState: {
-    height: 230,
+    height: 220,
     borderRadius: 18,
     backgroundColor: '#F7FBFA',
     alignItems: 'center',
@@ -484,11 +495,13 @@ const styles = StyleSheet.create({
     color: '#C13B3B',
   },
   liveMapShell: {
-    height: 230,
+    height: 220,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#E8F0EF',
+    flex: 1,
+    minWidth: 0,
   },
   liveMap: {
     flex: 1,
@@ -506,56 +519,78 @@ const styles = StyleSheet.create({
   driverPinOffline: {
     backgroundColor: '#93A5A2',
   },
-  liveMapStats: {
-    position: 'absolute',
-    left: 12,
-    bottom: 12,
+  liveMapBody: {
+    gap: 12,
+  },
+  liveMapBodyWide: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
+  },
+  liveMapStats: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    alignSelf: 'stretch',
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#F7FBFA',
     borderWidth: 1,
     borderColor: '#D9E9E6',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    padding: 10,
+    gap: 10,
+  },
+  liveMapStatsWide: {
+    width: 172,
+    flexDirection: 'column',
   },
   liveMapStat: {
     alignItems: 'center',
-    minWidth: 56,
+    justifyContent: 'center',
+    flex: 1,
+    minHeight: 80,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  liveMapStatIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
   },
   liveMapStatValue: {
     color: '#102A28',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
+    marginBottom: 1,
   },
   liveMapStatLabel: {
     color: '#617C79',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-  },
-  liveMapStatDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: '#D9E9E6',
-    marginHorizontal: 10,
   },
   liveMapEmpty: {
     position: 'absolute',
+    left: 12,
     right: 12,
     bottom: 12,
-    maxWidth: 190,
     borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderWidth: 1,
     borderColor: '#D9E9E6',
     paddingHorizontal: 12,
     paddingVertical: 10,
+    alignItems: 'center',
+    gap: 6,
   },
   liveMapEmptyTitle: {
     color: '#102A28',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '800',
+    textAlign: 'center',
   },
   statsGrid: {
     gap: 14,
