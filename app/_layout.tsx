@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
         <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
         <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
+        <Stack.Screen name="support-ticket/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

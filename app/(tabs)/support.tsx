@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -45,6 +47,8 @@ export default function AdminSupportScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>('All');
   const [supportTickets, setSupportTickets] = useState<AdminSupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTicket, setSelectedTicket] = useState<AdminSupportTicket | null>(null);
+  const [resolvingTicketId, setResolvingTicketId] = useState<string | null>(null);
 
   const loadTickets = useCallback(async () => {
     try {
@@ -109,6 +113,25 @@ export default function AdminSupportScreen() {
     }
 
     return name || email || 'Passenger';
+  };
+
+  const resolveTicket = async (ticket: AdminSupportTicket) => {
+    if (resolvingTicketId) return;
+
+    setResolvingTicketId(ticket.id);
+    try {
+      const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Resolved' }),
+      });
+      const data = await parseApiResponse<{ ticket: AdminSupportTicket }>(response);
+
+      setSupportTickets((current) => current.map((item) => (item.id === data.ticket.id ? data.ticket : item)));
+      setSelectedTicket(data.ticket);
+    } finally {
+      setResolvingTicketId(null);
+    }
   };
 
   return (
@@ -235,7 +258,7 @@ export default function AdminSupportScreen() {
 
               <View style={styles.ticketFooter}>
                 <Text style={styles.ticketTime}>{formatTicketTime(ticket)}</Text>
-                <Pressable style={styles.ticketAction}>
+                <Pressable style={styles.ticketAction} onPress={() => setSelectedTicket(ticket)}>
                   <Text style={styles.ticketActionText}>Review Ticket</Text>
                   <Ionicons name="arrow-forward" size={15} color={teal} />
                 </Pressable>
@@ -244,6 +267,104 @@ export default function AdminSupportScreen() {
           );
         })}
       </RefreshableScrollView>
+
+      <Modal
+        visible={Boolean(selectedTicket)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedTicket(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {selectedTicket ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalTitleWrap}>
+                    <Text style={styles.modalEyebrow} selectable>
+                      {selectedTicket.id}
+                    </Text>
+                    <Text style={styles.modalTitle}>{selectedTicket.subject}</Text>
+                  </View>
+                  <Pressable style={styles.modalCloseButton} onPress={() => setSelectedTicket(null)}>
+                    <Ionicons name="close" size={20} color="#617C79" />
+                  </Pressable>
+                </View>
+
+                <View style={styles.modalBadgeRow}>
+                  <View style={[styles.ticketBadge, selectedTicket.priority === 'Urgent' ? styles.ticketBadgeUrgent : styles.ticketBadgeNormal]}>
+                    <Text
+                      style={[
+                        styles.ticketBadgeText,
+                        selectedTicket.priority === 'Urgent' ? styles.ticketBadgeTextUrgent : styles.ticketBadgeTextNormal,
+                      ]}>
+                      {selectedTicket.priority}
+                    </Text>
+                  </View>
+                  <View style={[styles.ticketBadge, selectedTicket.status === 'Resolved' ? styles.ticketBadgeResolved : styles.ticketBadgeOpen]}>
+                    <Text
+                      style={[
+                        styles.ticketBadgeText,
+                        selectedTicket.status === 'Resolved' ? styles.ticketBadgeTextResolved : styles.ticketBadgeTextOpen,
+                      ]}>
+                      {selectedTicket.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.modalSectionLabel}>Passenger</Text>
+                <Text style={styles.modalInfoText} selectable>
+                  {getPassengerLabel(selectedTicket)}
+                </Text>
+
+                <Text style={styles.modalSectionLabel}>Topic</Text>
+                <Text style={styles.modalInfoText}>{selectedTicket.topic}</Text>
+
+                {!!selectedTicket.rideReference && (
+                  <>
+                    <Text style={styles.modalSectionLabel}>Ride Reference</Text>
+                    <Text style={styles.modalInfoText} selectable>
+                      {selectedTicket.rideReference}
+                    </Text>
+                  </>
+                )}
+
+                <Text style={styles.modalSectionLabel}>Complaint Details</Text>
+                <Text style={styles.modalDescription}>{selectedTicket.description}</Text>
+
+                {!!selectedTicket.adminNote && (
+                  <View style={styles.modalNoteBox}>
+                    <Text style={styles.modalSectionLabel}>Admin Note</Text>
+                    <Text style={styles.modalInfoText}>{selectedTicket.adminNote}</Text>
+                  </View>
+                )}
+
+                <View style={styles.modalActions}>
+                  <Pressable style={styles.modalSecondaryButton} onPress={() => setSelectedTicket(null)}>
+                    <Text style={styles.modalSecondaryButtonText}>Close</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={selectedTicket.status === 'Resolved' || resolvingTicketId === selectedTicket.id}
+                    style={[
+                      styles.modalResolveButton,
+                      (selectedTicket.status === 'Resolved' || resolvingTicketId === selectedTicket.id) && styles.modalResolveButtonDisabled,
+                    ]}
+                    onPress={() => {
+                      void resolveTicket(selectedTicket);
+                    }}>
+                    {resolvingTicketId === selectedTicket.id ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="checkmark-done-outline" size={18} color="#FFFFFF" />
+                    )}
+                    <Text style={styles.modalResolveButtonText}>
+                      {selectedTicket.status === 'Resolved' ? 'Resolved' : 'Resolve'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -561,5 +682,118 @@ const styles = StyleSheet.create({
     color: teal,
     fontSize: 12,
     fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(18, 53, 50, 0.42)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  modalCard: {
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    padding: 16,
+    maxHeight: '86%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+  },
+  modalTitleWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  modalEyebrow: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  modalTitle: {
+    color: '#123532',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  modalCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F2F6F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  modalSectionLabel: {
+    color: '#123532',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 8,
+    marginBottom: 3,
+  },
+  modalInfoText: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  modalDescription: {
+    color: '#617C79',
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
+  },
+  modalNoteBox: {
+    borderRadius: 12,
+    backgroundColor: '#F7FBFA',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    padding: 10,
+    marginTop: 10,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSecondaryButtonText: {
+    color: '#617C79',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  modalResolveButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 13,
+    backgroundColor: teal,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  modalResolveButtonDisabled: {
+    opacity: 0.65,
+  },
+  modalResolveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
   },
 });
