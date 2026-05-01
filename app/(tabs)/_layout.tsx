@@ -42,8 +42,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="live-map"
         options={{
-          title: 'Live Map',
-          tabBarIcon: ({ color }) => <Ionicons size={24} name="map-outline" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen

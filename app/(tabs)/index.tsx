@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   SafeAreaView,
   StatusBar as RNStatusBar,
@@ -10,8 +11,15 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import {
+  AdminDriverLocation,
+  getAdminSocket,
+  requestDriverLocationSnapshot,
+} from '@/lib/adminSocket';
 
 const teal = '#008080';
 
@@ -24,11 +32,137 @@ const stats = [
 
 const weeklyRides = [86, 112, 98, 134, 162, 149, 184];
 
+type DriverUser = {
+  id: string;
+  fullName: string;
+  phoneNumber: string;
+  vehicle?: {
+    category?: string;
+    make?: string;
+    model?: string;
+    plateNumber?: string;
+  } | null;
+};
+
+type DriverLocation = AdminDriverLocation;
+
+type DriverMapRecord = DriverUser & DriverLocation;
+
 export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const chartHeight = 220;
   const maxValue = Math.max(...weeklyRides);
+  const [drivers, setDrivers] = useState<DriverUser[]>([]);
+  const [driverLocations, setDriverLocations] = useState<Record<string, DriverLocation>>({});
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [mapErrorMessage, setMapErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDrivers = async () => {
+      setLoadingDrivers(true);
+      setMapErrorMessage(null);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/driver-auth/drivers`);
+        const data = await parseApiResponse<{ drivers: DriverUser[] }>(response);
+
+        if (isMounted) {
+          setDrivers(data.drivers);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setMapErrorMessage(error instanceof Error ? error.message : 'Unable to load driver list.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingDrivers(false);
+        }
+      }
+    };
+
+    loadDrivers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const socket = getAdminSocket();
+
+    const handleConnect = () => {
+      setSocketConnected(true);
+      requestDriverLocationSnapshot();
+    };
+
+    const handleDisconnect = () => {
+      setSocketConnected(false);
+    };
+
+    const handleSnapshot = (locations: DriverLocation[]) => {
+      setDriverLocations(
+        Object.fromEntries(locations.map((location) => [location.driverId, location]))
+      );
+    };
+
+    const handleUpdate = (location: DriverLocation) => {
+      setDriverLocations((current) => ({
+        ...current,
+        [location.driverId]: location,
+      }));
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('drivers_location_snapshot', handleSnapshot);
+    socket.on('drivers_location_update', handleUpdate);
+
+    if (socket.connected) {
+      handleConnect();
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('drivers_location_snapshot', handleSnapshot);
+      socket.off('drivers_location_update', handleUpdate);
+    };
+  }, []);
+
+  const trackedDrivers = useMemo<DriverMapRecord[]>(
+    () =>
+      drivers
+        .map((driver) => {
+          const location = driverLocations[driver.id];
+          return location ? { ...driver, ...location } : null;
+        })
+        .filter((driver): driver is DriverMapRecord => Boolean(driver)),
+    [drivers, driverLocations]
+  );
+
+  const onlineDrivers = useMemo(
+    () => trackedDrivers.filter((driver) => driver.isOnline),
+    [trackedDrivers]
+  );
+
+  const initialRegion =
+    trackedDrivers[0]
+      ? {
+          latitude: trackedDrivers[0].latitude,
+          longitude: trackedDrivers[0].longitude,
+          latitudeDelta: 0.16,
+          longitudeDelta: 0.16,
+        }
+      : {
+          latitude: 6.9271,
+          longitude: 79.8612,
+          latitudeDelta: 0.2,
+          longitudeDelta: 0.2,
+        };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -47,6 +181,78 @@ export default function AdminDashboardScreen() {
             <Ionicons name="pulse-outline" size={16} color={teal} />
             <Text style={styles.headerBadgeText}>System healthy</Text>
           </View>
+        </View>
+
+        <View style={styles.liveMapCard}>
+          <View style={styles.liveMapHeader}>
+            <View style={styles.liveMapTitleGroup}>
+              <Text style={styles.cardEyebrow}>LIVE MAP</Text>
+              <Text style={styles.cardTitle}>Driver monitor</Text>
+            </View>
+            <View style={styles.liveMapBadge}>
+              <Ionicons
+                name={socketConnected ? 'radio-outline' : 'cloud-offline-outline'}
+                size={14}
+                color={teal}
+              />
+              <Text style={styles.liveMapBadgeText}>{socketConnected ? 'Live' : 'Reconnecting'}</Text>
+            </View>
+          </View>
+
+          {loadingDrivers ? (
+            <View style={styles.liveMapState}>
+              <ActivityIndicator size="small" color={teal} />
+              <Text style={styles.liveMapStateText}>Loading drivers...</Text>
+            </View>
+          ) : mapErrorMessage ? (
+            <View style={[styles.liveMapState, styles.liveMapErrorState]}>
+              <Ionicons name="alert-circle-outline" size={18} color="#C13B3B" />
+              <Text style={[styles.liveMapStateText, styles.liveMapErrorText]}>{mapErrorMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.liveMapShell}>
+              <MapView
+                style={styles.liveMap}
+                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                initialRegion={initialRegion}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}>
+                {trackedDrivers.map((driver) => (
+                  <Marker
+                    key={driver.id}
+                    coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
+                    title={driver.fullName}
+                    description={`${formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                    <View style={[styles.driverPin, !driver.isOnline ? styles.driverPinOffline : null]}>
+                      <Ionicons name="car-sport" size={13} color="#FFFFFF" />
+                    </View>
+                  </Marker>
+                ))}
+              </MapView>
+
+              <View style={styles.liveMapStats}>
+                <View style={styles.liveMapStat}>
+                  <Text style={styles.liveMapStatValue}>{trackedDrivers.length}</Text>
+                  <Text style={styles.liveMapStatLabel}>Tracked</Text>
+                </View>
+                <View style={styles.liveMapStatDivider} />
+                <View style={styles.liveMapStat}>
+                  <Text style={styles.liveMapStatValue}>{onlineDrivers.length}</Text>
+                  <Text style={styles.liveMapStatLabel}>Online</Text>
+                </View>
+              </View>
+
+              {trackedDrivers.length === 0 ? (
+                <View style={styles.liveMapEmpty}>
+                  <Text style={styles.liveMapEmptyTitle}>Waiting for live driver locations</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
         </View>
 
         <View style={[styles.statsGrid, isWide ? styles.statsGridWide : null]}>
@@ -117,6 +323,14 @@ export default function AdminDashboardScreen() {
       </RefreshableScrollView>
     </SafeAreaView>
   );
+}
+
+function formatVehicle(vehicle: DriverUser['vehicle']) {
+  if (!vehicle) {
+    return 'Vehicle not added';
+  }
+
+  return [vehicle.category, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle added';
 }
 
 function PriorityRow({
@@ -209,6 +423,139 @@ const styles = StyleSheet.create({
     color: '#123532',
     fontSize: 13,
     fontWeight: '700',
+  },
+  liveMapCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    marginBottom: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  liveMapHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  liveMapTitleGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+  liveMapBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  liveMapBadgeText: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  liveMapState: {
+    height: 230,
+    borderRadius: 18,
+    backgroundColor: '#F7FBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  liveMapErrorState: {
+    backgroundColor: '#FFF4F4',
+    paddingHorizontal: 18,
+  },
+  liveMapStateText: {
+    color: '#617C79',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  liveMapErrorText: {
+    color: '#C13B3B',
+  },
+  liveMapShell: {
+    height: 230,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#E8F0EF',
+  },
+  liveMap: {
+    flex: 1,
+  },
+  driverPin: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: teal,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  driverPinOffline: {
+    backgroundColor: '#93A5A2',
+  },
+  liveMapStats: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  liveMapStat: {
+    alignItems: 'center',
+    minWidth: 56,
+  },
+  liveMapStatValue: {
+    color: '#102A28',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  liveMapStatLabel: {
+    color: '#617C79',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  liveMapStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#D9E9E6',
+    marginHorizontal: 10,
+  },
+  liveMapEmpty: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    maxWidth: 190,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  liveMapEmptyTitle: {
+    color: '#102A28',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
   },
   statsGrid: {
     gap: 14,
