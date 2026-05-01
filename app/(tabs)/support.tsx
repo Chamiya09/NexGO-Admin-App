@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -11,62 +11,59 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
-const summaryCards = [
-  { label: 'Open Tickets', value: '18', icon: 'mail-unread-outline' as const },
-  { label: 'Urgent Cases', value: '4', icon: 'alert-circle-outline' as const },
-  { label: 'Resolved Today', value: '11', icon: 'checkmark-done-outline' as const },
-];
-
 const ticketFilters = ['All', 'Open', 'Urgent', 'Resolved'] as const;
-
-const supportTickets = [
-  {
-    id: 'SUP-204',
-    title: 'Driver complained about payment mismatch',
-    source: 'Driver',
-    priority: 'Urgent',
-    status: 'Open',
-    detail: 'Trip payout total does not match the completed fare breakdown from the ride summary.',
-    time: '12 min ago',
-  },
-  {
-    id: 'SUP-198',
-    title: 'Passenger reported unsafe driving behavior',
-    source: 'Passenger',
-    priority: 'Urgent',
-    status: 'Open',
-    detail: 'Complaint submitted after trip completion with request for follow-up from support.',
-    time: '34 min ago',
-  },
-  {
-    id: 'SUP-191',
-    title: 'Promo discount not applied during checkout',
-    source: 'Passenger',
-    priority: 'Normal',
-    status: 'Open',
-    detail: 'Discount code accepted but final fare calculation did not reflect the promotion.',
-    time: '1 hr ago',
-  },
-  {
-    id: 'SUP-176',
-    title: 'Account verification inquiry from new driver',
-    source: 'Driver',
-    priority: 'Normal',
-    status: 'Resolved',
-    detail: 'Driver contacted support to confirm document review timeline and onboarding status.',
-    time: 'Resolved 2 hrs ago',
-  },
-];
 
 type FilterValue = (typeof ticketFilters)[number];
 
+type AdminSupportTicket = {
+  id: string;
+  passenger?: {
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+  } | null;
+  topic: string;
+  subject: string;
+  description: string;
+  rideReference: string;
+  priority: 'Normal' | 'Urgent';
+  status: 'Open' | 'In Review' | 'Resolved' | 'Closed';
+  adminNote: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+};
+
 export default function AdminSupportScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>('All');
+  const [supportTickets, setSupportTickets] = useState<AdminSupportTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadTickets = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/support-tickets/admin`);
+      const data = await parseApiResponse<{ tickets: AdminSupportTicket[] }>(response);
+      setSupportTickets(data.tickets ?? []);
+    } catch {
+      setSupportTickets([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadTickets();
+    }, [loadTickets])
+  );
 
   const filteredTickets = useMemo(() => {
     if (activeFilter === 'All') {
@@ -74,12 +71,53 @@ export default function AdminSupportScreen() {
     }
 
     return supportTickets.filter((ticket) => ticket.status === activeFilter || ticket.priority === activeFilter);
-  }, [activeFilter]);
+  }, [activeFilter, supportTickets]);
+
+  const summaryCards = useMemo(() => {
+    const today = new Date().toDateString();
+    const openCount = supportTickets.filter((ticket) => ticket.status === 'Open' || ticket.status === 'In Review').length;
+    const urgentCount = supportTickets.filter((ticket) => ticket.priority === 'Urgent').length;
+    const resolvedTodayCount = supportTickets.filter(
+      (ticket) => ticket.status === 'Resolved' && ticket.resolvedAt && new Date(ticket.resolvedAt).toDateString() === today
+    ).length;
+
+    return [
+      { label: 'Open Tickets', value: String(openCount), icon: 'mail-unread-outline' as const },
+      { label: 'Urgent Cases', value: String(urgentCount), icon: 'alert-circle-outline' as const },
+      { label: 'Resolved Today', value: String(resolvedTodayCount), icon: 'checkmark-done-outline' as const },
+    ];
+  }, [supportTickets]);
+
+  const formatTicketTime = (ticket: AdminSupportTicket) => {
+    const sourceDate = ticket.resolvedAt || ticket.updatedAt || ticket.createdAt;
+    const date = new Date(sourceDate);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Recently updated';
+    }
+
+    const label = ticket.status === 'Resolved' || ticket.status === 'Closed' ? ticket.status : 'Opened';
+    return `${label} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  };
+
+  const getPassengerLabel = (ticket: AdminSupportTicket) => {
+    const name = ticket.passenger?.fullName?.trim();
+    const email = ticket.passenger?.email?.trim();
+
+    if (name && email) {
+      return `${name} | ${email}`;
+    }
+
+    return name || email || 'Passenger';
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <RefreshableScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <RefreshableScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        onRefreshPage={loadTickets}>
         <View style={styles.header}>
           <Text style={styles.pageTitle}>Complaint & Support Tickets</Text>
           <Text style={styles.pageSubtitle}>
@@ -137,7 +175,17 @@ export default function AdminSupportScreen() {
           })}
         </ScrollView>
 
-        {filteredTickets.map((ticket) => {
+        {loading ? (
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateTitle}>Loading support tickets...</Text>
+          </View>
+        ) : filteredTickets.length === 0 ? (
+          <View style={styles.emptyStateCard}>
+            <Ionicons name="file-tray-outline" size={30} color={teal} />
+            <Text style={styles.emptyStateTitle}>No tickets found</Text>
+            <Text style={styles.emptyStateText}>Passenger support tickets will appear here after they are opened.</Text>
+          </View>
+        ) : filteredTickets.map((ticket) => {
           const isUrgent = ticket.priority === 'Urgent';
           const isResolved = ticket.status === 'Resolved';
 
@@ -146,7 +194,7 @@ export default function AdminSupportScreen() {
               <View style={styles.ticketTopRow}>
                 <View style={styles.ticketIdWrap}>
                   <Text style={styles.ticketId}>{ticket.id}</Text>
-                  <Text style={styles.ticketSource}>{ticket.source}</Text>
+                  <Text style={styles.ticketSource}>{getPassengerLabel(ticket)}</Text>
                 </View>
 
                 <View style={styles.ticketBadgeRow}>
@@ -163,11 +211,30 @@ export default function AdminSupportScreen() {
                 </View>
               </View>
 
-              <Text style={styles.ticketTitle}>{ticket.title}</Text>
-              <Text style={styles.ticketDetail}>{ticket.detail}</Text>
+              <Text style={styles.ticketTitle}>{ticket.subject}</Text>
+              <Text style={styles.ticketDetail}>{ticket.description}</Text>
+
+              <View style={styles.ticketMetaRow}>
+                <View style={styles.topicPill}>
+                  <Ionicons name="albums-outline" size={13} color={teal} />
+                  <Text style={styles.topicPillText}>{ticket.topic}</Text>
+                </View>
+                {!!ticket.rideReference && (
+                  <Text style={styles.rideReference} selectable>
+                    Ride: {ticket.rideReference}
+                  </Text>
+                )}
+              </View>
+
+              {!!ticket.adminNote && (
+                <View style={styles.adminNoteBox}>
+                  <Text style={styles.adminNoteLabel}>Admin note</Text>
+                  <Text style={styles.adminNoteText}>{ticket.adminNote}</Text>
+                </View>
+              )}
 
               <View style={styles.ticketFooter}>
-                <Text style={styles.ticketTime}>{ticket.time}</Text>
+                <Text style={styles.ticketTime}>{formatTicketTime(ticket)}</Text>
                 <Pressable style={styles.ticketAction}>
                   <Text style={styles.ticketActionText}>Review Ticket</Text>
                   <Ionicons name="arrow-forward" size={15} color={teal} />
@@ -325,6 +392,30 @@ const styles = StyleSheet.create({
   filterChipTextInactive: {
     color: '#4C6664',
   },
+  emptyStateCard: {
+    minHeight: 170,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  emptyStateTitle: {
+    color: '#123532',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   ticketCard: {
     borderRadius: 16,
     borderWidth: 1,
@@ -403,6 +494,52 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
     marginBottom: 12,
+  },
+  ticketMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  topicPill: {
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  topicPillText: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  rideReference: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  adminNoteBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 10,
+    marginBottom: 12,
+    gap: 3,
+  },
+  adminNoteLabel: {
+    color: '#123532',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  adminNoteText: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   ticketFooter: {
     flexDirection: 'row',
