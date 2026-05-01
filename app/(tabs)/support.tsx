@@ -243,19 +243,29 @@ export default function AdminSupportScreen() {
                 key={filter}
                 style={[styles.requesterOption, isActive && styles.requesterOptionActive]}
                 onPress={() => setActiveRequesterFilter(filter)}>
-                <View style={[styles.requesterIcon, isActive && styles.requesterIconActive]}>
-                  <Ionicons
-                    name={filter === 'Passenger' ? 'person-outline' : 'car-sport-outline'}
-                    size={16}
-                    color={isActive ? '#FFFFFF' : teal}
-                  />
+                <View style={styles.requesterContent}>
+                  <View style={[styles.requesterIcon, isActive && styles.requesterIconActive]}>
+                    <Ionicons
+                      name={filter === 'Passenger' ? 'person-outline' : 'car-sport-outline'}
+                      size={15}
+                      color={isActive ? teal : '#617C79'}
+                    />
+                  </View>
+                  <View style={styles.requesterTextWrap}>
+                    <Text
+                      style={[styles.requesterTitle, isActive && styles.requesterTitleActive]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit>
+                      {filter} Support
+                    </Text>
+                    <Text style={[styles.requesterSubtitle, isActive && styles.requesterSubtitleActive]} numberOfLines={1}>
+                      Support queue
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.requesterTextWrap}>
-                  <Text style={[styles.requesterTitle, isActive && styles.requesterTitleActive]}>
-                    {filter} Support
-                  </Text>
-                  <Text style={[styles.requesterCount, isActive && styles.requesterCountActive]}>
-                    {ticketCount} tickets
+                <View style={[styles.requesterCountBadge, isActive && styles.requesterCountBadgeActive]}>
+                  <Text style={[styles.requesterCountText, isActive && styles.requesterCountTextActive]}>
+                    {ticketCount}
                   </Text>
                 </View>
               </Pressable>
@@ -633,55 +643,88 @@ const styles = StyleSheet.create({
   },
   requesterSelector: {
     flexDirection: 'row',
-    gap: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 5,
+    gap: 5,
     marginBottom: 12,
   },
   requesterOption: {
     flex: 1,
-    minHeight: 72,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
+    minHeight: 62,
+    borderRadius: 14,
+    paddingHorizontal: 7,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    gap: 5,
   },
   requesterOptionActive: {
-    borderColor: teal,
-    backgroundColor: '#E7F5F3',
+    backgroundColor: teal,
+  },
+  requesterContent: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   requesterIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#E7F5F3',
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: '#F2F7F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   requesterIconActive: {
-    backgroundColor: teal,
+    backgroundColor: '#FFFFFF',
   },
   requesterTextWrap: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   requesterTitle: {
     color: '#123532',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '900',
   },
   requesterTitleActive: {
-    color: teal,
+    color: '#FFFFFF',
   },
-  requesterCount: {
+  requesterSubtitle: {
     color: '#617C79',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
   },
-  requesterCountActive: {
-    color: '#4C6664',
+  requesterSubtitleActive: {
+    color: '#D8EFED',
+  },
+  requesterCountBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  requesterCountBadgeActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  requesterCountText: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  requesterCountTextActive: {
+    color: teal,
   },
   filterRow: {
     gap: 10,
