@@ -9,6 +9,7 @@ import {
   StatusBar as RNStatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -22,9 +23,11 @@ const teal = '#008080';
 
 const requesterFilters = ['Passenger', 'Driver'] as const;
 const ticketFilters = ['All', 'Pending', 'Urgent', 'Resolved'] as const;
+const supportStatuses = ['Pending', 'Open', 'In Review', 'Resolved', 'Closed'] as const;
 
 type RequesterFilterValue = (typeof requesterFilters)[number];
 type FilterValue = (typeof ticketFilters)[number];
+type SupportStatusValue = (typeof supportStatuses)[number];
 
 const getStatusTone = (status: AdminSupportTicket['status']) => {
   if (status === 'Pending') return { text: '#B27A00', bg: '#FFF7E2', icon: 'time-outline' as const };
@@ -66,6 +69,8 @@ export default function AdminSupportScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<AdminSupportTicket | null>(null);
   const [resolvingTicketId, setResolvingTicketId] = useState<string | null>(null);
+  const [statusUpdatingTicketId, setStatusUpdatingTicketId] = useState<string | null>(null);
+  const [adminNoteDraft, setAdminNoteDraft] = useState('');
 
   const loadTickets = useCallback(async () => {
     try {
@@ -145,20 +150,37 @@ export default function AdminSupportScreen() {
     return name ? `${label}: ${name}` : email ? `${label}: ${email}` : label;
   };
 
-  const resolveTicket = async (ticket: AdminSupportTicket) => {
-    if (resolvingTicketId) return;
+  const openTicketReview = (ticket: AdminSupportTicket) => {
+    setSelectedTicket(ticket);
+    setAdminNoteDraft(ticket.adminNote || '');
+  };
 
-    setResolvingTicketId(ticket.id);
+  const updateTicketStatus = async (ticket: AdminSupportTicket, status: SupportStatusValue) => {
+    if (statusUpdatingTicketId) return;
+
+    setStatusUpdatingTicketId(ticket.id);
     try {
       const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Resolved' }),
+        body: JSON.stringify({ status, adminNote: adminNoteDraft.trim() }),
       });
       const data = await parseApiResponse<{ ticket: AdminSupportTicket }>(response);
 
       setSupportTickets((current) => current.map((item) => (item.id === data.ticket.id ? data.ticket : item)));
       setSelectedTicket(data.ticket);
+      setAdminNoteDraft(data.ticket.adminNote || '');
+    } finally {
+      setStatusUpdatingTicketId(null);
+    }
+  };
+
+  const resolveTicket = async (ticket: AdminSupportTicket) => {
+    if (resolvingTicketId) return;
+
+    setResolvingTicketId(ticket.id);
+    try {
+      await updateTicketStatus(ticket, 'Resolved');
     } finally {
       setResolvingTicketId(null);
     }
@@ -180,7 +202,7 @@ export default function AdminSupportScreen() {
 
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
-            <View>
+            <View style={styles.heroTitleWrap}>
               <Text style={styles.heroEyebrow}>SUPPORT DESK</Text>
               <Text style={styles.heroTitle}>Admin service board</Text>
             </View>
@@ -337,7 +359,7 @@ export default function AdminSupportScreen() {
 
               <View style={styles.ticketFooter}>
                 <Text style={styles.ticketTime}>{formatTicketTime(ticket)}</Text>
-                <Pressable style={styles.ticketAction} onPress={() => setSelectedTicket(ticket)}>
+                <Pressable style={styles.ticketAction} onPress={() => openTicketReview(ticket)}>
                   <Text style={styles.ticketActionText}>Review</Text>
                   <Ionicons name="arrow-forward" size={15} color={teal} />
                 </Pressable>
@@ -407,12 +429,54 @@ export default function AdminSupportScreen() {
                 <Text style={styles.modalSectionLabel}>Complaint Details</Text>
                 <Text style={styles.modalDescription}>{selectedTicket.description}</Text>
 
-                {!!selectedTicket.adminNote && (
-                  <View style={styles.modalNoteBox}>
-                    <Text style={styles.modalSectionLabel}>Admin Note</Text>
-                    <Text style={styles.modalInfoText}>{selectedTicket.adminNote}</Text>
+                <View style={styles.statusManagerCard}>
+                  <View style={styles.statusManagerHeader}>
+                    <View>
+                      <Text style={styles.statusManagerEyebrow}>REALTIME QUEUE</Text>
+                      <Text style={styles.statusManagerTitle}>Status Management</Text>
+                    </View>
+                    <View style={styles.statusManagerLivePill}>
+                      <Ionicons name="radio-button-on-outline" size={12} color={teal} />
+                      <Text style={styles.statusManagerLiveText}>Live</Text>
+                    </View>
                   </View>
-                )}
+
+                  <View style={styles.statusOptionGrid}>
+                    {supportStatuses.map((status) => {
+                      const isActive = selectedTicket.status === status;
+                      const tone = getStatusTone(status);
+
+                      return (
+                        <Pressable
+                          key={status}
+                          disabled={statusUpdatingTicketId === selectedTicket.id || isActive}
+                          style={[
+                            styles.statusOption,
+                            isActive && styles.statusOptionActive,
+                            statusUpdatingTicketId === selectedTicket.id && styles.statusOptionDisabled,
+                          ]}
+                          onPress={() => {
+                            void updateTicketStatus(selectedTicket, status);
+                          }}>
+                          <Ionicons name={tone.icon} size={14} color={isActive ? '#FFFFFF' : tone.text} />
+                          <Text style={[styles.statusOptionText, isActive && styles.statusOptionTextActive]}>
+                            {status}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.statusNoteLabel}>Admin Note</Text>
+                  <TextInput
+                    value={adminNoteDraft}
+                    onChangeText={setAdminNoteDraft}
+                    placeholder="Add update note for this ticket"
+                    placeholderTextColor="#8AA09D"
+                    multiline
+                    style={styles.statusNoteInput}
+                  />
+                </View>
 
                 <View style={styles.modalActions}>
                   <Pressable style={styles.modalSecondaryButton} onPress={() => setSelectedTicket(null)}>
@@ -487,6 +551,10 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
+  heroTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
   heroEyebrow: {
     color: teal,
     fontSize: 11,
@@ -505,12 +573,13 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 999,
     backgroundColor: '#E7F5F3',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 6,
+    flexShrink: 0,
   },
   heroPillText: {
     color: teal,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   summaryRow: {
@@ -918,6 +987,99 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontWeight: '600',
+  },
+  statusManagerCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 12,
+    marginTop: 14,
+  },
+  statusManagerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 10,
+  },
+  statusManagerEyebrow: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  statusManagerTitle: {
+    color: '#123532',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  statusManagerLivePill: {
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  statusManagerLiveText: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  statusOptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statusOption: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusOptionActive: {
+    borderColor: teal,
+    backgroundColor: teal,
+  },
+  statusOptionDisabled: {
+    opacity: 0.7,
+  },
+  statusOptionText: {
+    color: '#4C6664',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  statusOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  statusNoteLabel: {
+    color: '#123532',
+    fontSize: 11,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  statusNoteInput: {
+    minHeight: 82,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    color: '#123532',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    textAlignVertical: 'top',
   },
   modalNoteBox: {
     borderRadius: 12,
