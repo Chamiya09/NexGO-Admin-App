@@ -150,13 +150,18 @@ export default function AdminDashboardScreen() {
     [trackedDrivers]
   );
 
-  const initialRegion =
-    trackedDrivers[0]
+  const latestDriverSignal = useMemo(
+    () => onlineDrivers[0] || trackedDrivers[0] || null,
+    [onlineDrivers, trackedDrivers]
+  );
+
+  const mapRegion =
+    latestDriverSignal
       ? {
-          latitude: trackedDrivers[0].latitude,
-          longitude: trackedDrivers[0].longitude,
-          latitudeDelta: 0.16,
-          longitudeDelta: 0.16,
+          latitude: latestDriverSignal.latitude,
+          longitude: latestDriverSignal.longitude,
+          latitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
+          longitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
         }
       : {
           latitude: 6.9271,
@@ -216,7 +221,7 @@ export default function AdminDashboardScreen() {
                 <MapView
                   style={styles.liveMap}
                   provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                  initialRegion={initialRegion}
+                  region={mapRegion}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
                   scrollEnabled={false}
@@ -247,6 +252,13 @@ export default function AdminDashboardScreen() {
               <View style={[styles.liveMapStats, isMedium ? styles.liveMapStatsWide : null]}>
                 <View style={styles.liveMapStat}>
                   <View style={styles.liveMapStatIcon}>
+                    <Ionicons name="people-outline" size={15} color={teal} />
+                  </View>
+                  <Text style={styles.liveMapStatValue}>{drivers.length}</Text>
+                  <Text style={styles.liveMapStatLabel}>Fleet</Text>
+                </View>
+                <View style={styles.liveMapStat}>
+                  <View style={styles.liveMapStatIcon}>
                     <Ionicons name="navigate-outline" size={15} color={teal} />
                   </View>
                   <Text style={styles.liveMapStatValue}>{trackedDrivers.length}</Text>
@@ -258,6 +270,25 @@ export default function AdminDashboardScreen() {
                   </View>
                   <Text style={styles.liveMapStatValue}>{onlineDrivers.length}</Text>
                   <Text style={styles.liveMapStatLabel}>Online</Text>
+                </View>
+                <View style={styles.liveMapSignalCard}>
+                  <Text style={styles.liveMapSignalLabel}>Latest signal</Text>
+                  {latestDriverSignal ? (
+                    <>
+                      <Text style={styles.liveMapSignalName} numberOfLines={1}>
+                        {latestDriverSignal.fullName}
+                      </Text>
+                      <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
+                        {formatVehicle(latestDriverSignal.vehicle)}
+                      </Text>
+                      <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
+                        {latestDriverSignal.vehicle?.plateNumber || 'No plate'} |{' '}
+                        {latestDriverSignal.isOnline ? 'Online' : 'Offline'}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.liveMapSignalMeta}>No driver signal yet</Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -536,15 +567,18 @@ const styles = StyleSheet.create({
     borderColor: '#D9E9E6',
     padding: 10,
     gap: 10,
+    flexWrap: 'wrap',
   },
   liveMapStatsWide: {
-    width: 172,
+    width: 210,
     flexDirection: 'column',
+    flexWrap: 'nowrap',
   },
   liveMapStat: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    minWidth: 88,
     minHeight: 80,
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
@@ -570,6 +604,32 @@ const styles = StyleSheet.create({
     color: '#617C79',
     fontSize: 11,
     fontWeight: '700',
+  },
+  liveMapSignalCard: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  liveMapSignalLabel: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 5,
+  },
+  liveMapSignalName: {
+    color: '#102A28',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  liveMapSignalMeta: {
+    color: '#617C79',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
   },
   liveMapEmpty: {
     position: 'absolute',
