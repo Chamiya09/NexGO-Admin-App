@@ -295,22 +295,6 @@ export default function AdminDashboardScreen() {
                   <Text style={styles.liveMapStatValue}>{onlineDrivers.length}</Text>
                   <Text style={styles.liveMapStatLabel}>Online</Text>
                 </View>
-                <View style={styles.liveMapSignalCard}>
-                  <Text style={styles.liveMapSignalLabel}>Active signal</Text>
-                  {latestDriverSignal ? (
-                    <>
-                      <Text style={styles.liveMapSignalName} numberOfLines={1}>
-                        {latestDriverSignal.fullName || 'Driver'}
-                      </Text>
-                      <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
-                        {latestDriverSignal.vehicle?.plateNumber || formatVehicle(latestDriverSignal.vehicle)} |{' '}
-                        {latestDriverSignal.isOnline ? 'Online' : 'Offline'}
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={styles.liveMapSignalMeta}>No driver signal yet</Text>
-                  )}
-                </View>
               </View>
             </View>
           )}
@@ -662,32 +646,6 @@ const styles = StyleSheet.create({
     color: '#617C79',
     fontSize: 11,
     fontWeight: '700',
-  },
-  liveMapSignalCard: {
-    width: '100%',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-  },
-  liveMapSignalLabel: {
-    color: teal,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 5,
-  },
-  liveMapSignalName: {
-    color: '#102A28',
-    fontSize: 13,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  liveMapSignalMeta: {
-    color: '#617C79',
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: '600',
   },
   statsGrid: {
     gap: 14,
