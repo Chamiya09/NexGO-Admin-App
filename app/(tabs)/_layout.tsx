@@ -40,12 +40,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="live-map"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
         name="support"
         options={{
           title: 'Support',

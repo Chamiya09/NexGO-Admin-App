@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   ImageSourcePropType,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -14,7 +15,6 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
@@ -63,7 +63,6 @@ type DriverMapRecord = DriverUser & DriverLocation;
 type DriverLocationRecord = DriverMapRecord | (DriverLocation & Partial<DriverUser>);
 
 export default function AdminDashboardScreen() {
-  const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const isMedium = width >= 720;
@@ -75,6 +74,7 @@ export default function AdminDashboardScreen() {
   const [loadingDrivers, setLoadingDrivers] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
   const [mapErrorMessage, setMapErrorMessage] = useState<string | null>(null);
+  const [isLiveMapModalVisible, setIsLiveMapModalVisible] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -242,8 +242,8 @@ export default function AdminDashboardScreen() {
                 style={styles.liveMapOpenButton}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Open full live map"
-                onPress={() => router.push('/live-map')}>
+                accessibilityLabel="Show live map popup"
+                onPress={() => setIsLiveMapModalVisible(true)}>
                 <Ionicons name="expand-outline" size={15} color={teal} />
                 <Text style={styles.liveMapOpenButtonText}>Open Map</Text>
               </Pressable>
@@ -390,6 +390,70 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
       </RefreshableScrollView>
+
+      <Modal
+        visible={isLiveMapModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsLiveMapModalVisible(false)}>
+        <View style={styles.mapModalOverlay}>
+          <View style={styles.mapModalCard}>
+            <View style={styles.mapModalHeader}>
+              <View style={styles.mapModalTitleGroup}>
+                <Text style={styles.cardEyebrow}>LIVE MAP</Text>
+                <Text style={styles.mapModalTitle}>Driver locations</Text>
+              </View>
+              <Pressable
+                style={styles.mapModalCloseButton}
+                accessibilityRole="button"
+                accessibilityLabel="Close live map popup"
+                onPress={() => setIsLiveMapModalVisible(false)}>
+                <Ionicons name="close" size={21} color="#617C79" />
+              </Pressable>
+            </View>
+
+            <View style={styles.mapModalShell}>
+              <MapView
+                style={styles.liveMap}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={mapRegion}
+                mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                scrollEnabled
+                zoomEnabled
+                rotateEnabled
+                pitchEnabled>
+                <UrlTile
+                  urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maximumZ={19}
+                  flipY={false}
+                />
+                {visibleMapDrivers.map((driver) => {
+                  const vehicleCategory = getVehicleCategory(driver);
+
+                  return (
+                    <Marker
+                      key={String(driver.driverId || driver.id)}
+                      coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
+                      title={driver.fullName || 'Driver'}
+                      description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                      <Image
+                        source={getVehicleMarkerSource(vehicleCategory)}
+                        style={[
+                          styles.vehicleMarkerImage,
+                          !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
+                          getVehicleHeadingStyle(driver.heading),
+                        ]}
+                      />
+                    </Marker>
+                  );
+                })}
+              </MapView>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -714,6 +778,61 @@ const styles = StyleSheet.create({
     color: '#617C79',
     fontSize: 11,
     fontWeight: '700',
+  },
+  mapModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 42, 40, 0.52)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+  },
+  mapModalCard: {
+    flex: 1,
+    maxHeight: 720,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.18,
+    shadowRadius: 26,
+    elevation: 8,
+  },
+  mapModalHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  mapModalTitleGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mapModalTitle: {
+    color: '#102A28',
+    fontSize: 21,
+    lineHeight: 26,
+    fontWeight: '800',
+  },
+  mapModalCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F2F6F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  mapModalShell: {
+    flex: 1,
+    minHeight: 380,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#E8F0EF',
   },
   statsGrid: {
     gap: 14,
