@@ -65,15 +65,18 @@ export default function AdminActivitiesScreen() {
   const [activeFilter, setActiveFilter] = useState<TripFilter>('All');
   const [trips, setTrips] = useState<AdminTrip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadTrips = useCallback(async () => {
     try {
       setLoading(true);
+      setErrorMessage(null);
       const response = await authFetch(`${API_BASE_URL}/rides/admin/trips`);
       const data = await parseApiResponse<{ trips: AdminTrip[] }>(response);
       setTrips(data.trips ?? []);
-    } catch {
+    } catch (error) {
       setTrips([]);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load trips.');
     } finally {
       setLoading(false);
     }
@@ -171,6 +174,15 @@ export default function AdminActivitiesScreen() {
         {loading ? (
           <View style={styles.emptyStateCard}>
             <Text style={styles.emptyStateTitle}>Loading trips...</Text>
+          </View>
+        ) : errorMessage ? (
+          <View style={styles.emptyStateCard}>
+            <Ionicons name="alert-circle-outline" size={30} color="#C13B3B" />
+            <Text style={styles.emptyStateTitle}>Trips could not load</Text>
+            <Text style={styles.emptyStateText}>{errorMessage}</Text>
+            <Pressable style={styles.retryButton} onPress={loadTrips}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
           </View>
         ) : filteredTrips.length === 0 ? (
           <View style={styles.emptyStateCard}>
@@ -441,6 +453,19 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  retryButton: {
+    minHeight: 40,
+    borderRadius: 999,
+    backgroundColor: teal,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   tripCard: {
     borderRadius: 16,
