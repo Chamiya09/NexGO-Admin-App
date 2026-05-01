@@ -17,9 +17,18 @@ import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
-const tripFilters = ['All', 'Pending', 'Accepted', 'Arrived', 'InProgress', 'Completed', 'Cancelled'] as const;
+const tripFilters = [
+  { label: 'All', value: 'All', icon: 'layers-outline' as const },
+  { label: 'Pending', value: 'Pending', icon: 'time-outline' as const },
+  { label: 'Accepted', value: 'Accepted', icon: 'checkmark-circle-outline' as const },
+  { label: 'Arrived', value: 'Arrived', icon: 'location-outline' as const },
+  { label: 'In Progress', value: 'InProgress', icon: 'navigate-outline' as const },
+  { label: 'Completed', value: 'Completed', icon: 'checkmark-done-outline' as const },
+  { label: 'Cancelled', value: 'Cancelled', icon: 'close-circle-outline' as const },
+] as const;
 
-type TripFilter = (typeof tripFilters)[number];
+type TripFilter = (typeof tripFilters)[number]['value'];
+type RideStatus = Exclude<TripFilter, 'All'>;
 
 type AdminTrip = {
   id: string;
@@ -46,7 +55,7 @@ type AdminTrip = {
   };
   vehicleType: string;
   price: number;
-  status: TripFilter;
+  status: RideStatus;
   canonicalStatus?: string;
   requestedAt: string;
   acceptedAt?: string | null;
@@ -156,16 +165,30 @@ export default function AdminActivitiesScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {tripFilters.map((filter) => {
-            const isActive = activeFilter === filter;
+            const isActive = activeFilter === filter.value;
+            const filterCount =
+              filter.value === 'All' ? trips.length : trips.filter((trip) => trip.status === filter.value).length;
 
             return (
               <Pressable
-                key={filter}
+                key={filter.value}
                 style={[styles.filterChip, isActive ? styles.filterChipActive : styles.filterChipInactive]}
-                onPress={() => setActiveFilter(filter)}>
-                <Text style={[styles.filterChipText, isActive ? styles.filterChipTextActive : styles.filterChipTextInactive]}>
-                  {filter}
+                onPress={() => setActiveFilter(filter.value)}>
+                <Ionicons
+                  name={filter.icon}
+                  size={13}
+                  color={isActive ? '#FFFFFF' : '#4C6664'}
+                />
+                <Text
+                  style={[styles.filterChipText, isActive ? styles.filterChipTextActive : styles.filterChipTextInactive]}
+                  numberOfLines={1}>
+                  {filter.label}
                 </Text>
+                <View style={[styles.filterCountBadge, isActive ? styles.filterCountBadgeActive : null]}>
+                  <Text style={[styles.filterCountText, isActive ? styles.filterCountTextActive : null]}>
+                    {filterCount}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -410,7 +433,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
   filterChipActive: {
     backgroundColor: teal,
@@ -429,6 +455,26 @@ const styles = StyleSheet.create({
   },
   filterChipTextInactive: {
     color: '#4C6664',
+  },
+  filterCountBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  filterCountBadgeActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  filterCountText: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  filterCountTextActive: {
+    color: teal,
   },
   emptyStateCard: {
     minHeight: 170,
