@@ -176,7 +176,7 @@ export default function AdminSupportScreen() {
   };
 
   const resolveTicket = async (ticket: AdminSupportTicket) => {
-    if (resolvingTicketId) return;
+    if (resolvingTicketId || statusUpdatingTicketId) return;
 
     setResolvingTicketId(ticket.id);
     try {
@@ -492,24 +492,32 @@ export default function AdminSupportScreen() {
                   <Pressable style={styles.modalSecondaryButton} onPress={() => setSelectedTicket(null)}>
                     <Text style={styles.modalSecondaryButtonText}>Close</Text>
                   </Pressable>
-                  <Pressable
-                    disabled={selectedTicket.status === 'Resolved' || resolvingTicketId === selectedTicket.id}
-                    style={[
-                      styles.modalResolveButton,
-                      (selectedTicket.status === 'Resolved' || resolvingTicketId === selectedTicket.id) && styles.modalResolveButtonDisabled,
-                    ]}
-                    onPress={() => {
-                      void resolveTicket(selectedTicket);
-                    }}>
-                    {resolvingTicketId === selectedTicket.id ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <Ionicons name="checkmark-done-outline" size={18} color="#FFFFFF" />
-                    )}
-                    <Text style={styles.modalResolveButtonText}>
-                      {selectedTicket.status === 'Resolved' ? 'Resolved' : 'Resolve'}
-                    </Text>
-                  </Pressable>
+                  {(() => {
+                    const isUpdatingSelectedTicket =
+                      resolvingTicketId === selectedTicket.id || statusUpdatingTicketId === selectedTicket.id;
+                    const isResolved = selectedTicket.status === 'Resolved';
+
+                    return (
+                      <Pressable
+                        disabled={isResolved || isUpdatingSelectedTicket}
+                        style={[
+                          styles.modalResolveButton,
+                          (isResolved || isUpdatingSelectedTicket) && styles.modalResolveButtonDisabled,
+                        ]}
+                        onPress={() => {
+                          void resolveTicket(selectedTicket);
+                        }}>
+                        {isUpdatingSelectedTicket ? (
+                          <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                          <Ionicons name="checkmark-done-outline" size={18} color="#FFFFFF" />
+                        )}
+                        <Text style={styles.modalResolveButtonText}>
+                          {isResolved ? 'Resolved' : 'Update & Resolve'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })()}
                 </View>
               </>
             ) : null}
