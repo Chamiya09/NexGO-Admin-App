@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  ImageSourcePropType,
   Platform,
   SafeAreaView,
   StatusBar as RNStatusBar,
@@ -31,6 +33,15 @@ const stats = [
 ];
 
 const weeklyRides = [86, 112, 98, 134, 162, 149, 184];
+
+const vehicleMarkerImages: Record<'Bike' | 'Tuk' | 'Mini' | 'Car' | 'Van' | 'Default', ImageSourcePropType> = {
+  Bike: require('../../assets/images/vehicle-markers/bike-top.png'),
+  Tuk: require('../../assets/images/vehicle-markers/tuk-top.png'),
+  Mini: require('../../assets/images/vehicle-markers/mini-top.png'),
+  Car: require('../../assets/images/vehicle-markers/car-top.png'),
+  Van: require('../../assets/images/vehicle-markers/van-top.png'),
+  Default: require('../../assets/images/vehicle-markers/car-top.png'),
+};
 
 type DriverUser = {
   id: string;
@@ -263,16 +274,14 @@ export default function AdminDashboardScreen() {
                       coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
                       title={driver.fullName || 'Driver'}
                       description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
-                      <View
+                      <Image
+                        source={getVehicleMarkerSource(vehicleCategory)}
                         style={[
-                          styles.driverPin,
-                          !driver.isOnline ? styles.driverPinOffline : null,
-                          vehicleCategory === 'Bike' ? styles.driverPinBike : null,
-                          vehicleCategory === 'Tuk' ? styles.driverPinTuk : null,
-                          vehicleCategory === 'Van' ? styles.driverPinVan : null,
-                        ]}>
-                        <Ionicons name={getVehicleIconName(vehicleCategory)} size={13} color="#FFFFFF" />
-                      </View>
+                          styles.vehicleMarkerImage,
+                          !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
+                          getVehicleHeadingStyle(driver.heading),
+                        ]}
+                      />
                     </Marker>
                     );
                   })}
@@ -400,11 +409,18 @@ function getVehicleCategory(driver: DriverLocationRecord) {
   }
 }
 
-function getVehicleIconName(category: ReturnType<typeof getVehicleCategory>) {
-  if (category === 'Bike') return 'bicycle';
-  if (category === 'Tuk') return 'car-outline';
-  if (category === 'Van') return 'bus-outline';
-  return 'car-sport';
+function getVehicleMarkerSource(category: ReturnType<typeof getVehicleCategory>) {
+  return vehicleMarkerImages[category || 'Default'];
+}
+
+function getVehicleHeadingStyle(heading?: number) {
+  const nextHeading = Number(heading);
+
+  if (!Number.isFinite(nextHeading)) {
+    return null;
+  }
+
+  return { transform: [{ rotate: `${nextHeading}deg` }] };
 }
 
 function formatVehicle(vehicle: DriverUser['vehicle']) {
@@ -579,18 +595,13 @@ const styles = StyleSheet.create({
   liveMap: {
     flex: 1,
   },
-  driverPin: {
+  vehicleMarkerImage: {
     width: 30,
     height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: teal,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+    resizeMode: 'contain',
   },
-  driverPinOffline: {
-    backgroundColor: '#93A5A2',
+  vehicleMarkerImageOffline: {
+    opacity: 0.55,
   },
   liveMapBody: {
     gap: 12,
