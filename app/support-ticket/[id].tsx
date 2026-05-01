@@ -40,7 +40,13 @@ type TicketStatus = 'Pending' | 'Open' | 'In Review' | 'Resolved' | 'Closed';
 
 type AdminSupportTicket = {
   id: string;
+  requesterType?: 'Passenger' | 'Driver';
   passenger?: {
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+  } | null;
+  driver?: {
     fullName?: string;
     email?: string;
     phoneNumber?: string;
@@ -92,11 +98,14 @@ export default function AdminSupportTicketReviewScreen() {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const passengerLabel = useMemo(() => {
-    const name = ticket?.passenger?.fullName?.trim();
-    const email = ticket?.passenger?.email?.trim();
-    const phone = ticket?.passenger?.phoneNumber?.trim();
+    const requester = ticket?.requesterType === 'Driver' ? ticket?.driver : ticket?.passenger;
+    const label = ticket?.requesterType === 'Driver' ? 'Driver' : 'Passenger';
+    const name = requester?.fullName?.trim();
+    const email = requester?.email?.trim();
+    const phone = requester?.phoneNumber?.trim();
 
-    return [name, email, phone].filter(Boolean).join(' | ') || 'Passenger details unavailable';
+    const details = [name, email, phone].filter(Boolean).join(' | ');
+    return details ? `${label}: ${details}` : `${label} details unavailable`;
   }, [ticket]);
 
   const loadTicket = useCallback(async () => {

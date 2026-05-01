@@ -34,7 +34,13 @@ const getStatusTone = (status: AdminSupportTicket['status']) => {
 
 type AdminSupportTicket = {
   id: string;
+  requesterType?: 'Passenger' | 'Driver';
   passenger?: {
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+  } | null;
+  driver?: {
     fullName?: string;
     email?: string;
     phoneNumber?: string;
@@ -115,14 +121,16 @@ export default function AdminSupportScreen() {
   };
 
   const getPassengerLabel = (ticket: AdminSupportTicket) => {
-    const name = ticket.passenger?.fullName?.trim();
-    const email = ticket.passenger?.email?.trim();
+    const requester = ticket.requesterType === 'Driver' ? ticket.driver : ticket.passenger;
+    const name = requester?.fullName?.trim();
+    const email = requester?.email?.trim();
+    const label = ticket.requesterType === 'Driver' ? 'Driver' : 'Passenger';
 
     if (name && email) {
-      return `${name} | ${email}`;
+      return `${label}: ${name} | ${email}`;
     }
 
-    return name || email || 'Passenger';
+    return name ? `${label}: ${name}` : email ? `${label}: ${email}` : label;
   };
 
   const resolveTicket = async (ticket: AdminSupportTicket) => {
