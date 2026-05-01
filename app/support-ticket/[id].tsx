@@ -36,7 +36,7 @@ const palette = {
   neutralSoft: '#F2F4F7',
 };
 
-type TicketStatus = 'Open' | 'In Review' | 'Resolved' | 'Closed';
+type TicketStatus = 'Pending' | 'Open' | 'In Review' | 'Resolved' | 'Closed';
 
 type AdminSupportTicket = {
   id: string;
@@ -57,9 +57,10 @@ type AdminSupportTicket = {
   resolvedAt: string | null;
 };
 
-const STATUS_OPTIONS: TicketStatus[] = ['Open', 'In Review', 'Resolved', 'Closed'];
+const STATUS_OPTIONS: TicketStatus[] = ['Pending', 'Open', 'In Review', 'Resolved', 'Closed'];
 
 const getStatusTone = (status: TicketStatus) => {
+  if (status === 'Pending') return { color: palette.warning, backgroundColor: palette.warningSoft };
   if (status === 'Resolved') return { color: palette.success, backgroundColor: palette.successSoft };
   if (status === 'Closed') return { color: palette.neutral, backgroundColor: palette.neutralSoft };
   if (status === 'In Review') return { color: palette.warning, backgroundColor: palette.warningSoft };
@@ -84,7 +85,7 @@ export default function AdminSupportTicketReviewScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const ticketId = Array.isArray(id) ? id[0] : id;
   const [ticket, setTicket] = useState<AdminSupportTicket | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<TicketStatus>('Open');
+  const [selectedStatus, setSelectedStatus] = useState<TicketStatus>('Pending');
   const [adminNote, setAdminNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

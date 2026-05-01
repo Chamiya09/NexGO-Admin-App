@@ -20,11 +20,12 @@ import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
-const ticketFilters = ['All', 'Open', 'Urgent', 'Resolved'] as const;
+const ticketFilters = ['All', 'Pending', 'Urgent', 'Resolved'] as const;
 
 type FilterValue = (typeof ticketFilters)[number];
 
 const getStatusTone = (status: AdminSupportTicket['status']) => {
+  if (status === 'Pending') return { text: '#B27A00', bg: '#FFF7E2', icon: 'time-outline' as const };
   if (status === 'Resolved') return { text: '#157A62', bg: '#E8F7F0', icon: 'checkmark-done-outline' as const };
   if (status === 'Closed') return { text: '#667085', bg: '#F2F4F7', icon: 'lock-closed-outline' as const };
   if (status === 'In Review') return { text: '#B27A00', bg: '#FFF7E2', icon: 'hourglass-outline' as const };
@@ -43,7 +44,7 @@ type AdminSupportTicket = {
   description: string;
   rideReference: string;
   priority: 'Normal' | 'Urgent';
-  status: 'Open' | 'In Review' | 'Resolved' | 'Closed';
+  status: 'Pending' | 'Open' | 'In Review' | 'Resolved' | 'Closed';
   adminNote: string;
   createdAt: string;
   updatedAt: string;
@@ -86,14 +87,16 @@ export default function AdminSupportScreen() {
 
   const summaryCards = useMemo(() => {
     const today = new Date().toDateString();
-    const openCount = supportTickets.filter((ticket) => ticket.status === 'Open' || ticket.status === 'In Review').length;
+    const openCount = supportTickets.filter((ticket) =>
+      ['Pending', 'Open', 'In Review'].includes(ticket.status)
+    ).length;
     const urgentCount = supportTickets.filter((ticket) => ticket.priority === 'Urgent').length;
     const resolvedTodayCount = supportTickets.filter(
       (ticket) => ticket.status === 'Resolved' && ticket.resolvedAt && new Date(ticket.resolvedAt).toDateString() === today
     ).length;
 
     return [
-      { label: 'Open Tickets', value: String(openCount), icon: 'mail-unread-outline' as const },
+      { label: 'Pending Tickets', value: String(openCount), icon: 'mail-unread-outline' as const },
       { label: 'Urgent Cases', value: String(urgentCount), icon: 'alert-circle-outline' as const },
       { label: 'Resolved Today', value: String(resolvedTodayCount), icon: 'checkmark-done-outline' as const },
     ];
@@ -107,7 +110,7 @@ export default function AdminSupportScreen() {
       return 'Recently updated';
     }
 
-    const label = ticket.status === 'Resolved' || ticket.status === 'Closed' ? ticket.status : 'Opened';
+    const label = ticket.status === 'Resolved' || ticket.status === 'Closed' ? ticket.status : ticket.status;
     return `${label} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
   };
 
