@@ -224,10 +224,10 @@ export default function AdminDashboardScreen() {
                   region={mapRegion}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}>
+                  scrollEnabled
+                  zoomEnabled
+                  rotateEnabled
+                  pitchEnabled>
                   {trackedDrivers.map((driver) => (
                     <Marker
                       key={driver.id}
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     color: '#C13B3B',
   },
   liveMapShell: {
-    height: 220,
+    height: 260,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
