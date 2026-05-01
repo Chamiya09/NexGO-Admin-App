@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -68,7 +67,6 @@ export default function AdminSupportScreen() {
   const [supportTickets, setSupportTickets] = useState<AdminSupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<AdminSupportTicket | null>(null);
-  const [resolvingTicketId, setResolvingTicketId] = useState<string | null>(null);
   const [statusUpdatingTicketId, setStatusUpdatingTicketId] = useState<string | null>(null);
   const [adminNoteDraft, setAdminNoteDraft] = useState('');
 
@@ -172,17 +170,6 @@ export default function AdminSupportScreen() {
       setAdminNoteDraft(data.ticket.adminNote || '');
     } finally {
       setStatusUpdatingTicketId(null);
-    }
-  };
-
-  const resolveTicket = async (ticket: AdminSupportTicket) => {
-    if (resolvingTicketId || statusUpdatingTicketId) return;
-
-    setResolvingTicketId(ticket.id);
-    try {
-      await updateTicketStatus(ticket, 'Resolved');
-    } finally {
-      setResolvingTicketId(null);
     }
   };
 
@@ -492,32 +479,6 @@ export default function AdminSupportScreen() {
                   <Pressable style={styles.modalSecondaryButton} onPress={() => setSelectedTicket(null)}>
                     <Text style={styles.modalSecondaryButtonText}>Close</Text>
                   </Pressable>
-                  {(() => {
-                    const isUpdatingSelectedTicket =
-                      resolvingTicketId === selectedTicket.id || statusUpdatingTicketId === selectedTicket.id;
-                    const isResolved = selectedTicket.status === 'Resolved';
-
-                    return (
-                      <Pressable
-                        disabled={isResolved || isUpdatingSelectedTicket}
-                        style={[
-                          styles.modalResolveButton,
-                          (isResolved || isUpdatingSelectedTicket) && styles.modalResolveButtonDisabled,
-                        ]}
-                        onPress={() => {
-                          void resolveTicket(selectedTicket);
-                        }}>
-                        {isUpdatingSelectedTicket ? (
-                          <ActivityIndicator color="#FFFFFF" />
-                        ) : (
-                          <Ionicons name="checkmark-done-outline" size={18} color="#FFFFFF" />
-                        )}
-                        <Text style={styles.modalResolveButtonText}>
-                          {isResolved ? 'Resolved' : 'Update & Resolve'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })()}
                 </View>
               </>
             ) : null}
@@ -1156,24 +1117,6 @@ const styles = StyleSheet.create({
   },
   modalSecondaryButtonText: {
     color: '#617C79',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  modalResolveButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 13,
-    backgroundColor: teal,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-  },
-  modalResolveButtonDisabled: {
-    opacity: 0.65,
-  },
-  modalResolveButtonText: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
   },
