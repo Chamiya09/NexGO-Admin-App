@@ -241,12 +241,6 @@ export default function AdminDashboardScreen() {
                   ))}
                 </MapView>
 
-                {trackedDrivers.length === 0 ? (
-                  <View style={styles.liveMapEmpty}>
-                    <Ionicons name="locate-outline" size={20} color={teal} />
-                    <Text style={styles.liveMapEmptyTitle}>Waiting for live driver locations</Text>
-                  </View>
-                ) : null}
               </View>
 
               <View style={[styles.liveMapStats, isMedium ? styles.liveMapStatsWide : null]}>
@@ -630,27 +624,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '600',
-  },
-  liveMapEmpty: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-    gap: 6,
-  },
-  liveMapEmptyTitle: {
-    color: '#102A28',
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '800',
-    textAlign: 'center',
   },
   statsGrid: {
     gap: 14,
