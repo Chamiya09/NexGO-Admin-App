@@ -47,6 +47,7 @@ type DriverUser = {
 type DriverLocation = AdminDriverLocation;
 
 type DriverMapRecord = DriverUser & DriverLocation;
+type DriverLocationRecord = DriverMapRecord | (DriverLocation & Partial<DriverUser>);
 
 export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
@@ -134,14 +135,20 @@ export default function AdminDashboardScreen() {
     };
   }, []);
 
-  const trackedDrivers = useMemo<DriverMapRecord[]>(
+  const trackedDrivers = useMemo<DriverLocationRecord[]>(
     () =>
-      drivers
-        .map((driver) => {
-          const location = driverLocations[driver.id];
-          return location ? { ...driver, ...location } : null;
-        })
-        .filter((driver): driver is DriverMapRecord => Boolean(driver)),
+      Object.values(driverLocations)
+        .filter(hasValidDriverLocation)
+        .map((location) => {
+          const matchingDriver = drivers.find((driver) => String(driver.id) === String(location.driverId));
+          return matchingDriver
+            ? { ...matchingDriver, ...location }
+            : {
+                ...location,
+                id: String(location.driverId),
+                fullName: `Driver ${String(location.driverId).slice(-6)}`,
+              };
+        }),
     [drivers, driverLocations]
   );
 
@@ -221,7 +228,7 @@ export default function AdminDashboardScreen() {
                 <MapView
                   style={styles.liveMap}
                   provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                  region={mapRegion}
+                  initialRegion={mapRegion}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
                   scrollEnabled
@@ -230,9 +237,9 @@ export default function AdminDashboardScreen() {
                   pitchEnabled>
                   {trackedDrivers.map((driver) => (
                     <Marker
-                      key={driver.id}
+                      key={String(driver.driverId || driver.id)}
                       coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      title={driver.fullName}
+                      title={driver.fullName || 'Driver'}
                       description={`${formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
                       <View style={[styles.driverPin, !driver.isOnline ? styles.driverPinOffline : null]}>
                         <Ionicons name="car-sport" size={13} color="#FFFFFF" />
@@ -270,7 +277,7 @@ export default function AdminDashboardScreen() {
                   {latestDriverSignal ? (
                     <>
                       <Text style={styles.liveMapSignalName} numberOfLines={1}>
-                        {latestDriverSignal.fullName}
+                        {latestDriverSignal.fullName || 'Driver'}
                       </Text>
                       <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
                         {formatVehicle(latestDriverSignal.vehicle)}
@@ -357,6 +364,10 @@ export default function AdminDashboardScreen() {
       </RefreshableScrollView>
     </SafeAreaView>
   );
+}
+
+function hasValidDriverLocation(location: DriverLocation): location is DriverLocation {
+  return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
 }
 
 function formatVehicle(vehicle: DriverUser['vehicle']) {
