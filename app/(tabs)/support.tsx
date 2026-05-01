@@ -20,8 +20,10 @@ import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
+const requesterFilters = ['Passenger', 'Driver'] as const;
 const ticketFilters = ['All', 'Pending', 'Urgent', 'Resolved'] as const;
 
+type RequesterFilterValue = (typeof requesterFilters)[number];
 type FilterValue = (typeof ticketFilters)[number];
 
 const getStatusTone = (status: AdminSupportTicket['status']) => {
@@ -58,6 +60,7 @@ type AdminSupportTicket = {
 };
 
 export default function AdminSupportScreen() {
+  const [activeRequesterFilter, setActiveRequesterFilter] = useState<RequesterFilterValue>('Passenger');
   const [activeFilter, setActiveFilter] = useState<FilterValue>('All');
   const [supportTickets, setSupportTickets] = useState<AdminSupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,29 +87,38 @@ export default function AdminSupportScreen() {
   );
 
   const filteredTickets = useMemo(() => {
+    const requesterTickets = supportTickets.filter((ticket) => {
+      const requesterType = ticket.requesterType || (ticket.driver ? 'Driver' : 'Passenger');
+      return requesterType === activeRequesterFilter;
+    });
+
     if (activeFilter === 'All') {
-      return supportTickets;
+      return requesterTickets;
     }
 
-    return supportTickets.filter((ticket) => ticket.status === activeFilter || ticket.priority === activeFilter);
-  }, [activeFilter, supportTickets]);
+    return requesterTickets.filter((ticket) => ticket.status === activeFilter || ticket.priority === activeFilter);
+  }, [activeFilter, activeRequesterFilter, supportTickets]);
 
   const summaryCards = useMemo(() => {
     const today = new Date().toDateString();
-    const openCount = supportTickets.filter((ticket) =>
+    const requesterTickets = supportTickets.filter((ticket) => {
+      const requesterType = ticket.requesterType || (ticket.driver ? 'Driver' : 'Passenger');
+      return requesterType === activeRequesterFilter;
+    });
+    const openCount = requesterTickets.filter((ticket) =>
       ['Pending', 'Open', 'In Review'].includes(ticket.status)
     ).length;
-    const urgentCount = supportTickets.filter((ticket) => ticket.priority === 'Urgent').length;
-    const resolvedTodayCount = supportTickets.filter(
+    const urgentCount = requesterTickets.filter((ticket) => ticket.priority === 'Urgent').length;
+    const resolvedTodayCount = requesterTickets.filter(
       (ticket) => ticket.status === 'Resolved' && ticket.resolvedAt && new Date(ticket.resolvedAt).toDateString() === today
     ).length;
 
     return [
-      { label: 'Pending Tickets', value: String(openCount), icon: 'mail-unread-outline' as const },
-      { label: 'Urgent Cases', value: String(urgentCount), icon: 'alert-circle-outline' as const },
+      { label: `${activeRequesterFilter} Pending`, value: String(openCount), icon: 'mail-unread-outline' as const },
+      { label: `${activeRequesterFilter} Urgent`, value: String(urgentCount), icon: 'alert-circle-outline' as const },
       { label: 'Resolved Today', value: String(resolvedTodayCount), icon: 'checkmark-done-outline' as const },
     ];
-  }, [supportTickets]);
+  }, [activeRequesterFilter, supportTickets]);
 
   const formatTicketTime = (ticket: AdminSupportTicket) => {
     const sourceDate = ticket.resolvedAt || ticket.updatedAt || ticket.createdAt;
@@ -193,7 +205,40 @@ export default function AdminSupportScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Ticket Queue</Text>
-          <Text style={styles.sectionSubtitle}>Filter complaints by current admin handling state</Text>
+          <Text style={styles.sectionSubtitle}>Select passenger or driver support, then filter by current handling state</Text>
+        </View>
+
+        <View style={styles.requesterSelector}>
+          {requesterFilters.map((filter) => {
+            const isActive = activeRequesterFilter === filter;
+            const ticketCount = supportTickets.filter((ticket) => {
+              const requesterType = ticket.requesterType || (ticket.driver ? 'Driver' : 'Passenger');
+              return requesterType === filter;
+            }).length;
+
+            return (
+              <Pressable
+                key={filter}
+                style={[styles.requesterOption, isActive && styles.requesterOptionActive]}
+                onPress={() => setActiveRequesterFilter(filter)}>
+                <View style={[styles.requesterIcon, isActive && styles.requesterIconActive]}>
+                  <Ionicons
+                    name={filter === 'Passenger' ? 'person-outline' : 'car-sport-outline'}
+                    size={16}
+                    color={isActive ? '#FFFFFF' : teal}
+                  />
+                </View>
+                <View style={styles.requesterTextWrap}>
+                  <Text style={[styles.requesterTitle, isActive && styles.requesterTitleActive]}>
+                    {filter} Support
+                  </Text>
+                  <Text style={[styles.requesterCount, isActive && styles.requesterCountActive]}>
+                    {ticketCount} tickets
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
         <ScrollView
@@ -224,7 +269,9 @@ export default function AdminSupportScreen() {
           <View style={styles.emptyStateCard}>
             <Ionicons name="file-tray-outline" size={30} color={teal} />
             <Text style={styles.emptyStateTitle}>No tickets found</Text>
-            <Text style={styles.emptyStateText}>Passenger support tickets will appear here after they are opened.</Text>
+            <Text style={styles.emptyStateText}>
+              {activeRequesterFilter} support tickets will appear here after they are opened.
+            </Text>
           </View>
         ) : filteredTickets.map((ticket) => {
           const isUrgent = ticket.priority === 'Urgent';
@@ -340,7 +387,7 @@ export default function AdminSupportScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.modalSectionLabel}>Passenger</Text>
+                <Text style={styles.modalSectionLabel}>{selectedTicket.requesterType === 'Driver' ? 'Driver' : 'Passenger'}</Text>
                 <Text style={styles.modalInfoText} selectable>
                   {getPassengerLabel(selectedTicket)}
                 </Text>
@@ -514,6 +561,58 @@ const styles = StyleSheet.create({
     color: '#617C79',
     fontSize: 12,
     fontWeight: '500',
+  },
+  requesterSelector: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  requesterOption: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  requesterOptionActive: {
+    borderColor: teal,
+    backgroundColor: '#E7F5F3',
+  },
+  requesterIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requesterIconActive: {
+    backgroundColor: teal,
+  },
+  requesterTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  requesterTitle: {
+    color: '#123532',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  requesterTitleActive: {
+    color: teal,
+  },
+  requesterCount: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  requesterCountActive: {
+    color: '#4C6664',
   },
   filterRow: {
     gap: 10,
