@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -68,6 +69,7 @@ export default function AdminSupportScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<AdminSupportTicket | null>(null);
   const [statusUpdatingTicketId, setStatusUpdatingTicketId] = useState<string | null>(null);
+  const [statusDraft, setStatusDraft] = useState<SupportStatusValue>('Pending');
   const [adminNoteDraft, setAdminNoteDraft] = useState('');
 
   const loadTickets = useCallback(async () => {
@@ -150,10 +152,11 @@ export default function AdminSupportScreen() {
 
   const openTicketReview = (ticket: AdminSupportTicket) => {
     setSelectedTicket(ticket);
+    setStatusDraft(ticket.status);
     setAdminNoteDraft(ticket.adminNote || '');
   };
 
-  const updateTicketStatus = async (ticket: AdminSupportTicket, status: SupportStatusValue) => {
+  const updateTicketStatus = async (ticket: AdminSupportTicket) => {
     if (statusUpdatingTicketId) return;
 
     setStatusUpdatingTicketId(ticket.id);
@@ -161,12 +164,13 @@ export default function AdminSupportScreen() {
       const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, adminNote: adminNoteDraft.trim() }),
+        body: JSON.stringify({ status: statusDraft, adminNote: adminNoteDraft.trim() }),
       });
       const data = await parseApiResponse<{ ticket: AdminSupportTicket }>(response);
 
       setSupportTickets((current) => current.map((item) => (item.id === data.ticket.id ? data.ticket : item)));
       setSelectedTicket(data.ticket);
+      setStatusDraft(data.ticket.status);
       setAdminNoteDraft(data.ticket.adminNote || '');
     } finally {
       setStatusUpdatingTicketId(null);
@@ -440,21 +444,19 @@ export default function AdminSupportScreen() {
 
                   <View style={styles.statusOptionGrid}>
                     {supportStatuses.map((status) => {
-                      const isActive = selectedTicket.status === status;
+                      const isActive = statusDraft === status;
                       const tone = getStatusTone(status);
 
                       return (
                         <Pressable
                           key={status}
-                          disabled={statusUpdatingTicketId === selectedTicket.id || isActive}
+                          disabled={statusUpdatingTicketId === selectedTicket.id}
                           style={[
                             styles.statusOption,
                             isActive && styles.statusOptionActive,
                             statusUpdatingTicketId === selectedTicket.id && styles.statusOptionDisabled,
                           ]}
-                          onPress={() => {
-                            void updateTicketStatus(selectedTicket, status);
-                          }}>
+                          onPress={() => setStatusDraft(status)}>
                           <Ionicons name={tone.icon} size={14} color={isActive ? '#FFFFFF' : tone.text} />
                           <Text style={[styles.statusOptionText, isActive && styles.statusOptionTextActive]}>
                             {status}
@@ -473,6 +475,25 @@ export default function AdminSupportScreen() {
                     multiline
                     style={styles.statusNoteInput}
                   />
+
+                  <Pressable
+                    disabled={statusUpdatingTicketId === selectedTicket.id}
+                    style={[
+                      styles.statusUpdateButton,
+                      statusUpdatingTicketId === selectedTicket.id && styles.statusUpdateButtonDisabled,
+                    ]}
+                    onPress={() => {
+                      void updateTicketStatus(selectedTicket);
+                    }}>
+                    {statusUpdatingTicketId === selectedTicket.id ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="save-outline" size={17} color="#FFFFFF" />
+                    )}
+                    <Text style={styles.statusUpdateButtonText}>
+                      {statusUpdatingTicketId === selectedTicket.id ? 'Updating...' : 'Update Status'}
+                    </Text>
+                  </Pressable>
                 </View>
 
                 <View style={styles.modalActions}>
@@ -1092,6 +1113,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 10,
     textAlignVertical: 'top',
+  },
+  statusUpdateButton: {
+    minHeight: 46,
+    borderRadius: 13,
+    backgroundColor: teal,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  statusUpdateButtonDisabled: {
+    opacity: 0.68,
+  },
+  statusUpdateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
   },
   modalNoteBox: {
     borderRadius: 12,
