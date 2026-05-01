@@ -185,6 +185,7 @@ export default function AdminSupportScreen() {
         showsVerticalScrollIndicator={false}
         onRefreshPage={loadTickets}>
         <View style={styles.header}>
+          <Text style={styles.eyebrow}>SUPPORT DESK</Text>
           <Text style={styles.pageTitle}>Complaint & Support Tickets</Text>
           <Text style={styles.pageSubtitle}>
             Track escalations, monitor active complaints, and manage support follow-ups from one place.
@@ -524,8 +525,15 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 16,
   },
+  eyebrow: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    marginBottom: 6,
+  },
   pageTitle: {
-    color: '#123532',
+    color: '#102A28',
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
