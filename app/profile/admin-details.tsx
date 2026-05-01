@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -86,7 +86,7 @@ export default function AdminDetailsScreen() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/profile`);
+      const response = await authFetch(`${API_BASE_URL}/admin/profile`);
       const data = await parseApiResponse<{ adminProfile: AdminProfile }>(response);
 
       setSavedAdmin(data.adminProfile);
@@ -117,7 +117,7 @@ export default function AdminDetailsScreen() {
         shift: form.shift.trim(),
       };
 
-      const response = await fetch(`${API_BASE_URL}/admin/profile`, {
+      const response = await authFetch(`${API_BASE_URL}/admin/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

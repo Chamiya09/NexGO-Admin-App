@@ -1,10 +1,26 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useAdminAuth } from '@/context/admin-auth-context';
 
 export default function TabLayout() {
+  const { initializing, token } = useAdminAuth();
+
+  if (initializing) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F8F7' }}>
+        <ActivityIndicator color="#008080" />
+      </View>
+    );
+  }
+
+  if (!token) {
+    return <Redirect href="/login" />;
+  }
+
   return (
     <Tabs
       screenOptions={{

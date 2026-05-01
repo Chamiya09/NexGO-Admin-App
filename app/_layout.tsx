@@ -5,6 +5,7 @@ import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Keyboard, View } from 'react-native';
 import 'react-native-reanimated';
 
+import { AdminAuthProvider } from '@/context/admin-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -44,20 +45,22 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <KeyboardDismissView>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="profile/admin-details" options={{ headerShown: false }} />
-          <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
-          <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
-          <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
-          <Stack.Screen name="support-ticket/[id]" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </KeyboardDismissView>
+      <AdminAuthProvider>
+        <KeyboardDismissView>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="profile/admin-details" options={{ headerShown: false }} />
+            <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
+            <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
+            <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
+            <Stack.Screen name="support-ticket/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </KeyboardDismissView>
+      </AdminAuthProvider>
     </ThemeProvider>
   );
 }

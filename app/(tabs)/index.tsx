@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
   AdminDriverLocation,
   getAdminSocket,
@@ -75,6 +75,8 @@ export default function AdminDashboardScreen() {
   const [socketConnected, setSocketConnected] = useState(false);
   const [mapErrorMessage, setMapErrorMessage] = useState<string | null>(null);
   const [isLiveMapModalVisible, setIsLiveMapModalVisible] = useState(false);
+  const [isDashboardMapReady, setIsDashboardMapReady] = useState(false);
+  const [isPopupMapReady, setIsPopupMapReady] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -84,7 +86,7 @@ export default function AdminDashboardScreen() {
       setMapErrorMessage(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/driver-auth/drivers`);
+        const response = await authFetch(`${API_BASE_URL}/driver-auth/drivers`);
         const data = await parseApiResponse<{ drivers: DriverUser[] }>(response);
 
         if (isMounted) {
@@ -243,7 +245,10 @@ export default function AdminDashboardScreen() {
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Show live map popup"
-                onPress={() => setIsLiveMapModalVisible(true)}>
+                onPress={() => {
+                  setIsPopupMapReady(false);
+                  setIsLiveMapModalVisible(true);
+                }}>
                 <Ionicons name="expand-outline" size={15} color={teal} />
                 <Text style={styles.liveMapOpenButtonText}>Open Map</Text>
               </Pressable>
@@ -269,6 +274,10 @@ export default function AdminDashboardScreen() {
                   provider={PROVIDER_DEFAULT}
                   initialRegion={mapRegion}
                   mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
+                  loadingEnabled
+                  loadingBackgroundColor="#E8F0EF"
+                  loadingIndicatorColor={teal}
+                  onMapReady={() => setIsDashboardMapReady(true)}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
                   scrollEnabled
@@ -301,7 +310,11 @@ export default function AdminDashboardScreen() {
                     );
                   })}
                 </MapView>
-
+                {!isDashboardMapReady ? (
+                  <View style={styles.mapLoadingOverlay}>
+                    <ActivityIndicator size="small" color={teal} />
+                  </View>
+                ) : null}
               </View>
 
               <View style={[styles.liveMapStats, isMedium ? styles.liveMapStatsWide : null]}>
@@ -418,6 +431,10 @@ export default function AdminDashboardScreen() {
                 provider={PROVIDER_DEFAULT}
                 initialRegion={mapRegion}
                 mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
+                loadingEnabled
+                loadingBackgroundColor="#E8F0EF"
+                loadingIndicatorColor={teal}
+                onMapReady={() => setIsPopupMapReady(true)}
                 showsUserLocation={false}
                 showsMyLocationButton={false}
                 scrollEnabled
@@ -450,6 +467,11 @@ export default function AdminDashboardScreen() {
                   );
                 })}
               </MapView>
+              {!isPopupMapReady ? (
+                <View style={styles.mapLoadingOverlay}>
+                  <ActivityIndicator size="small" color={teal} />
+                </View>
+              ) : null}
             </View>
           </View>
         </View>
@@ -717,6 +739,12 @@ const styles = StyleSheet.create({
   },
   liveMap: {
     flex: 1,
+  },
+  mapLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#E8F0EF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   vehicleMarkerImage: {
     width: 30,

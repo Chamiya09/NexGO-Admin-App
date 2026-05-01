@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -52,7 +52,7 @@ export default function AccountSecurityScreen() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/profile/password`, {
+      const response = await authFetch(`${API_BASE_URL}/admin/profile/password`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

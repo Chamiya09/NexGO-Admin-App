@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -119,7 +119,7 @@ export default function AdminSupportTicketReviewScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticketId}`);
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin/${ticketId}`);
       const data = await parseApiResponse<{ ticket: AdminSupportTicket }>(response);
       setTicket(data.ticket);
       setSelectedStatus(data.ticket.status);
@@ -144,7 +144,7 @@ export default function AdminSupportTicketReviewScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticketId}`, {
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin/${ticketId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

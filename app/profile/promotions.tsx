@@ -21,7 +21,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -140,7 +140,7 @@ export default function PromotionManagementScreen() {
   const loadPromotions = useCallback(async () => {
     setIsLoadingPromotions(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions`);
+      const response = await authFetch(`${API_BASE_URL}/promotions`);
       const data = await parseApiResponse<{ promotions: PromotionApiCampaign[] }>(response);
 
       const savedPromotions = (data.promotions ?? []).map(normalizePromotion);
@@ -247,7 +247,7 @@ export default function PromotionManagementScreen() {
       type: mimeType,
     } as unknown as Blob);
 
-    const response = await fetch(`${API_BASE_URL}/upload`, {
+    const response = await authFetch(`${API_BASE_URL}/upload`, {
       method: 'POST',
       body,
     });
@@ -290,7 +290,7 @@ export default function PromotionManagementScreen() {
       };
 
       const isExistingPromotion = campaigns.some((campaign) => campaign.id === form.id);
-      const response = await fetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,7 +322,7 @@ export default function PromotionManagementScreen() {
 
   const deleteCampaign = async (campaign: PromotionCampaign) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}/delete`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions/${campaign.id}/delete`, {
         method: 'POST',
       });
       const data = await parseApiResponse<{ message?: string; id: string }>(response);
@@ -368,7 +368,7 @@ export default function PromotionManagementScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

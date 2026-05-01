@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
@@ -75,7 +75,7 @@ export default function AdminSupportScreen() {
   const loadTickets = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin`);
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin`);
       const data = await parseApiResponse<{ tickets: AdminSupportTicket[] }>(response);
       setSupportTickets(data.tickets ?? []);
     } catch {
@@ -161,7 +161,7 @@ export default function AdminSupportScreen() {
 
     setStatusUpdatingTicketId(ticket.id);
     try {
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: statusDraft, adminNote: adminNoteDraft.trim() }),

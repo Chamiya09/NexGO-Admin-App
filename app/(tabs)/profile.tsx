@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { useAdminAuth } from '@/context/admin-auth-context';
 
 type ProfileSection = {
   title: string;
@@ -33,12 +34,6 @@ const palette = {
   border: '#D9E9E6',
   danger: '#C13B3B',
   dangerBg: '#FFF4F4',
-};
-
-const adminProfile = {
-  fullName: 'NexGO Operations Admin',
-  role: 'Operations Supervisor',
-  scope: 'Colombo HQ command access',
 };
 
 const PROFILE_SECTIONS: ProfileSection[] = [
@@ -83,6 +78,12 @@ const PROFILE_METRICS = [
 ];
 
 export default function AdminProfileScreen() {
+  const { admin, logout } = useAdminAuth();
+  const adminProfile = {
+    fullName: admin?.fullName || 'NexGO Operations Admin',
+    role: admin?.role || 'Operations Supervisor',
+    scope: admin?.scope || 'Colombo HQ command access',
+  };
   const initials = adminProfile.fullName
     .split(' ')
     .filter(Boolean)
@@ -167,7 +168,10 @@ export default function AdminProfileScreen() {
             styles.logoutRow,
             { backgroundColor: palette.dangerBg, borderColor: '#F1D6D6' },
           ]}
-          onPress={() => router.replace('/login')}>
+          onPress={() => {
+            logout();
+            router.replace('/login');
+          }}>
           <View style={styles.settingLeft}>
             <View style={[styles.settingIconWrap, { backgroundColor: '#FFE9E9' }]}>
               <Ionicons name="log-out-outline" size={20} color={palette.danger} />

@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
@@ -76,8 +76,8 @@ export default function AdminUsersScreen() {
 
     try {
       const [usersResponse, driversResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/auth/users`),
-        fetch(`${API_BASE_URL}/driver-auth/drivers`),
+        authFetch(`${API_BASE_URL}/auth/users`),
+        authFetch(`${API_BASE_URL}/driver-auth/drivers`),
       ]);
 
       const [{ users }, { drivers }] = await Promise.all([

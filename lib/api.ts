@@ -1,6 +1,8 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { getAdminToken } from './admin-session';
+
 const LOCAL_API_FALLBACK = 'http://localhost:5000/api';
 
 function isPlaceholderApiUrl(value: string) {
@@ -34,6 +36,10 @@ export const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+type AuthFetchInit = RequestInit & {
+  headers?: HeadersInit;
+};
+
 export async function parseApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -41,4 +47,22 @@ export async function parseApiResponse<T>(response: Response): Promise<T> {
   }
 
   return data as T;
+}
+
+export function createAuthHeaders(headers?: HeadersInit) {
+  const token = getAdminToken();
+  const nextHeaders = new Headers(headers);
+
+  if (token) {
+    nextHeaders.set('Authorization', `Bearer ${token}`);
+  }
+
+  return nextHeaders;
+}
+
+export function authFetch(input: RequestInfo | URL, init: AuthFetchInit = {}) {
+  return fetch(input, {
+    ...init,
+    headers: createAuthHeaders(init.headers),
+  });
 }

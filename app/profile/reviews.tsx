@@ -13,7 +13,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -130,7 +130,7 @@ export default function AdminReviewManagerScreen() {
     setReviews([]);
 
     try {
-      const response = await fetch(buildReviewsUrl(activeFilter), {
+      const response = await authFetch(buildReviewsUrl(activeFilter), {
         headers: { 'Cache-Control': 'no-cache' },
       });
       const data = await parseReviewsResponse(response);
@@ -139,7 +139,7 @@ export default function AdminReviewManagerScreen() {
       setReviews(savedReviews);
 
       try {
-        const summaryResponse = await fetch(buildReviewsUrl('all'), {
+        const summaryResponse = await authFetch(buildReviewsUrl('all'), {
           headers: { 'Cache-Control': 'no-cache' },
         });
         const summaryData = await parseReviewsResponse(summaryResponse);
@@ -173,7 +173,7 @@ export default function AdminReviewManagerScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews/${review.rideId}`, {
+      const response = await authFetch(`${API_BASE_URL}/rides/admin/reviews/${review.rideId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
