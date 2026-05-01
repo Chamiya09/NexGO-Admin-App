@@ -4,6 +4,7 @@ import {
   Image,
   ImageSourcePropType,
   Platform,
+  Pressable,
   SafeAreaView,
   StatusBar as RNStatusBar,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
@@ -61,6 +63,7 @@ type DriverMapRecord = DriverUser & DriverLocation;
 type DriverLocationRecord = DriverMapRecord | (DriverLocation & Partial<DriverUser>);
 
 export default function AdminDashboardScreen() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const isMedium = width >= 720;
@@ -220,18 +223,30 @@ export default function AdminDashboardScreen() {
         </View>
 
         <View style={styles.liveMapCard}>
-          <View style={styles.liveMapHeader}>
+          <View style={[styles.liveMapHeader, isMedium ? styles.liveMapHeaderWide : null]}>
             <View style={styles.liveMapTitleGroup}>
               <Text style={styles.cardEyebrow}>LIVE MAP</Text>
-              <Text style={styles.cardTitle}>Driver monitor</Text>
+              <Text style={styles.liveMapTitle}>Driver monitor</Text>
+              <Text style={styles.liveMapSubtitle}>Realtime fleet positions on OpenStreetMap</Text>
             </View>
-            <View style={styles.liveMapBadge}>
-              <Ionicons
-                name={socketConnected ? 'radio-outline' : 'cloud-offline-outline'}
-                size={14}
-                color={teal}
-              />
-              <Text style={styles.liveMapBadgeText}>{socketConnected ? 'Live' : 'Reconnecting'}</Text>
+            <View style={[styles.liveMapActions, isMedium ? styles.liveMapActionsWide : null]}>
+              <View style={styles.liveMapBadge}>
+                <Ionicons
+                  name={socketConnected ? 'radio-outline' : 'cloud-offline-outline'}
+                  size={14}
+                  color={teal}
+                />
+                <Text style={styles.liveMapBadgeText}>{socketConnected ? 'Live' : 'Reconnecting'}</Text>
+              </View>
+              <Pressable
+                style={styles.liveMapOpenButton}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Open full live map"
+                onPress={() => router.push('/live-map')}>
+                <Ionicons name="expand-outline" size={15} color={teal} />
+                <Text style={styles.liveMapOpenButtonText}>Open Map</Text>
+              </Pressable>
             </View>
           </View>
 
@@ -269,20 +284,20 @@ export default function AdminDashboardScreen() {
                     const vehicleCategory = getVehicleCategory(driver);
 
                     return (
-                    <Marker
-                      key={String(driver.driverId || driver.id)}
-                      coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      title={driver.fullName || 'Driver'}
-                      description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
-                      <Image
-                        source={getVehicleMarkerSource(vehicleCategory)}
-                        style={[
-                          styles.vehicleMarkerImage,
-                          !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
-                          getVehicleHeadingStyle(driver.heading),
-                        ]}
-                      />
-                    </Marker>
+                      <Marker
+                        key={String(driver.driverId || driver.id)}
+                        coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
+                        title={driver.fullName || 'Driver'}
+                        description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                        <Image
+                          source={getVehicleMarkerSource(vehicleCategory)}
+                          style={[
+                            styles.vehicleMarkerImage,
+                            !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
+                            getVehicleHeadingStyle(driver.heading),
+                          ]}
+                        />
+                      </Marker>
                     );
                   })}
                 </MapView>
@@ -536,18 +551,44 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   liveMapHeader: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  liveMapHeaderWide: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 14,
   },
   liveMapTitleGroup: {
     flex: 1,
     minWidth: 0,
   },
+  liveMapTitle: {
+    color: '#102A28',
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '800',
+  },
+  liveMapSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  liveMapActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+    alignSelf: 'flex-start',
+  },
+  liveMapActionsWide: {
+    justifyContent: 'flex-end',
+    flexShrink: 0,
+  },
   liveMapBadge: {
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -558,6 +599,24 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   liveMapBadgeText: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  liveMapOpenButton: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    flexShrink: 0,
+  },
+  liveMapOpenButtonText: {
     color: teal,
     fontSize: 11,
     fontWeight: '800',
@@ -584,7 +643,7 @@ const styles = StyleSheet.create({
     color: '#C13B3B',
   },
   liveMapShell: {
-    height: 260,
+    height: 250,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
@@ -620,18 +679,16 @@ const styles = StyleSheet.create({
     borderColor: '#D9E9E6',
     padding: 10,
     gap: 10,
-    flexWrap: 'wrap',
   },
   liveMapStatsWide: {
-    width: 210,
+    width: 150,
     flexDirection: 'column',
-    flexWrap: 'nowrap',
   },
   liveMapStat: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
-    minWidth: 88,
+    minWidth: 0,
     minHeight: 80,
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
