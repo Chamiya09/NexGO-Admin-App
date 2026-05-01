@@ -228,7 +228,7 @@ export default function AdminSupportScreen() {
                     <Ionicons name="chatbox-ellipses-outline" size={18} color={teal} />
                   </View>
                   <View style={styles.ticketIdWrap}>
-                    <Text style={styles.ticketId}>{ticket.id}</Text>
+                    <Text style={styles.ticketTitle}>{ticket.subject}</Text>
                     <Text style={styles.ticketSource} numberOfLines={1}>{getPassengerLabel(ticket)}</Text>
                   </View>
                 </View>
@@ -253,7 +253,6 @@ export default function AdminSupportScreen() {
                 </View>
               </View>
 
-              <Text style={styles.ticketTitle}>{ticket.subject}</Text>
               <Text style={styles.ticketDetail} numberOfLines={3}>{ticket.description}</Text>
 
               <View style={styles.ticketInfoPanel}>
@@ -301,10 +300,8 @@ export default function AdminSupportScreen() {
               <>
                 <View style={styles.modalHeader}>
                   <View style={styles.modalTitleWrap}>
-                    <Text style={styles.modalEyebrow} selectable>
-                      {selectedTicket.id}
-                    </Text>
                     <Text style={styles.modalTitle}>{selectedTicket.subject}</Text>
+                    <Text style={styles.modalSubtitle}>{getPassengerLabel(selectedTicket)}</Text>
                   </View>
                   <Pressable style={styles.modalCloseButton} onPress={() => setSelectedTicket(null)}>
                     <Ionicons name="close" size={20} color="#617C79" />
@@ -599,12 +596,6 @@ const styles = StyleSheet.create({
   ticketIdWrap: {
     flex: 1,
   },
-  ticketId: {
-    color: teal,
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
   ticketSource: {
     color: '#617C79',
     fontSize: 12,
@@ -654,7 +645,6 @@ const styles = StyleSheet.create({
     color: '#123532',
     fontSize: 15,
     fontWeight: '800',
-    marginBottom: 6,
   },
   ticketDetail: {
     color: '#617C79',
@@ -775,15 +765,16 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  modalEyebrow: {
-    color: teal,
-    fontSize: 12,
-    fontWeight: '900',
-  },
   modalTitle: {
     color: '#123532',
     fontSize: 18,
     fontWeight: '900',
+  },
+  modalSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   modalCloseButton: {
     width: 34,
