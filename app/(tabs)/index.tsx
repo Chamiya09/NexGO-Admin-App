@@ -253,13 +253,6 @@ export default function AdminDashboardScreen() {
               <View style={[styles.liveMapStats, isMedium ? styles.liveMapStatsWide : null]}>
                 <View style={styles.liveMapStat}>
                   <View style={styles.liveMapStatIcon}>
-                    <Ionicons name="people-outline" size={15} color={teal} />
-                  </View>
-                  <Text style={styles.liveMapStatValue}>{drivers.length}</Text>
-                  <Text style={styles.liveMapStatLabel}>Fleet</Text>
-                </View>
-                <View style={styles.liveMapStat}>
-                  <View style={styles.liveMapStatIcon}>
                     <Ionicons name="navigate-outline" size={15} color={teal} />
                   </View>
                   <Text style={styles.liveMapStatValue}>{trackedDrivers.length}</Text>
@@ -273,17 +266,14 @@ export default function AdminDashboardScreen() {
                   <Text style={styles.liveMapStatLabel}>Online</Text>
                 </View>
                 <View style={styles.liveMapSignalCard}>
-                  <Text style={styles.liveMapSignalLabel}>Latest signal</Text>
+                  <Text style={styles.liveMapSignalLabel}>Active signal</Text>
                   {latestDriverSignal ? (
                     <>
                       <Text style={styles.liveMapSignalName} numberOfLines={1}>
                         {latestDriverSignal.fullName || 'Driver'}
                       </Text>
                       <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
-                        {formatVehicle(latestDriverSignal.vehicle)}
-                      </Text>
-                      <Text style={styles.liveMapSignalMeta} numberOfLines={1}>
-                        {latestDriverSignal.vehicle?.plateNumber || 'No plate'} |{' '}
+                        {latestDriverSignal.vehicle?.plateNumber || formatVehicle(latestDriverSignal.vehicle)} |{' '}
                         {latestDriverSignal.isOnline ? 'Online' : 'Offline'}
                       </Text>
                     </>
