@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -55,6 +55,7 @@ export default function AdminDashboardScreen() {
   const isMedium = width >= 720;
   const chartHeight = 220;
   const maxValue = Math.max(...weeklyRides);
+  const mapRef = useRef<MapView | null>(null);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
   const [driverLocations, setDriverLocations] = useState<Record<string, DriverLocation>>({});
   const [loadingDrivers, setLoadingDrivers] = useState(true);
@@ -162,20 +163,31 @@ export default function AdminDashboardScreen() {
     [onlineDrivers, trackedDrivers]
   );
 
-  const mapRegion =
-    latestDriverSignal
-      ? {
-          latitude: latestDriverSignal.latitude,
-          longitude: latestDriverSignal.longitude,
-          latitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
-          longitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
-        }
-      : {
-          latitude: 6.9271,
-          longitude: 79.8612,
-          latitudeDelta: 0.2,
-          longitudeDelta: 0.2,
-        };
+  const visibleMapDrivers = onlineDrivers.length > 0 ? onlineDrivers : trackedDrivers;
+
+  const mapRegion = useMemo(
+    () =>
+      latestDriverSignal
+        ? {
+            latitude: latestDriverSignal.latitude,
+            longitude: latestDriverSignal.longitude,
+            latitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
+            longitudeDelta: trackedDrivers.length > 1 ? 0.18 : 0.08,
+          }
+        : {
+            latitude: 6.9271,
+            longitude: 79.8612,
+            latitudeDelta: 0.2,
+            longitudeDelta: 0.2,
+          },
+    [latestDriverSignal, trackedDrivers.length]
+  );
+
+  useEffect(() => {
+    if (!latestDriverSignal) return;
+
+    mapRef.current?.animateToRegion(mapRegion, 450);
+  }, [latestDriverSignal, mapRegion]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -212,12 +224,12 @@ export default function AdminDashboardScreen() {
             </View>
           </View>
 
-          {loadingDrivers ? (
+          {loadingDrivers && trackedDrivers.length === 0 ? (
             <View style={styles.liveMapState}>
               <ActivityIndicator size="small" color={teal} />
               <Text style={styles.liveMapStateText}>Loading drivers...</Text>
             </View>
-          ) : mapErrorMessage ? (
+          ) : mapErrorMessage && trackedDrivers.length === 0 ? (
             <View style={[styles.liveMapState, styles.liveMapErrorState]}>
               <Ionicons name="alert-circle-outline" size={18} color="#C13B3B" />
               <Text style={[styles.liveMapStateText, styles.liveMapErrorText]}>{mapErrorMessage}</Text>
@@ -226,6 +238,7 @@ export default function AdminDashboardScreen() {
             <View style={[styles.liveMapBody, isMedium ? styles.liveMapBodyWide : null]}>
               <View style={styles.liveMapShell}>
                 <MapView
+                  ref={mapRef}
                   style={styles.liveMap}
                   provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                   initialRegion={mapRegion}
@@ -235,17 +248,28 @@ export default function AdminDashboardScreen() {
                   zoomEnabled
                   rotateEnabled
                   pitchEnabled>
-                  {trackedDrivers.map((driver) => (
+                  {visibleMapDrivers.map((driver) => {
+                    const vehicleCategory = getVehicleCategory(driver);
+
+                    return (
                     <Marker
                       key={String(driver.driverId || driver.id)}
                       coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
                       title={driver.fullName || 'Driver'}
-                      description={`${formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
-                      <View style={[styles.driverPin, !driver.isOnline ? styles.driverPinOffline : null]}>
-                        <Ionicons name="car-sport" size={13} color="#FFFFFF" />
+                      description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                      <View
+                        style={[
+                          styles.driverPin,
+                          !driver.isOnline ? styles.driverPinOffline : null,
+                          vehicleCategory === 'Bike' ? styles.driverPinBike : null,
+                          vehicleCategory === 'Tuk' ? styles.driverPinTuk : null,
+                          vehicleCategory === 'Van' ? styles.driverPinVan : null,
+                        ]}>
+                        <Ionicons name={getVehicleIconName(vehicleCategory)} size={13} color="#FFFFFF" />
                       </View>
                     </Marker>
-                  ))}
+                    );
+                  })}
                 </MapView>
 
               </View>
@@ -358,6 +382,39 @@ export default function AdminDashboardScreen() {
 
 function hasValidDriverLocation(location: DriverLocation): location is DriverLocation {
   return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
+}
+
+function getVehicleCategory(driver: DriverLocationRecord) {
+  const rawCategory = (driver.vehicle?.category || driver.vehicleCategory || '').trim().toLowerCase();
+
+  switch (rawCategory) {
+    case 'tuk':
+    case 'tuktuk':
+    case 'threewheel':
+    case 'three-wheel':
+    case 'three wheel':
+      return 'Tuk';
+    case 'bike':
+    case 'motorbike':
+    case 'motorcycle':
+      return 'Bike';
+    case 'mini':
+      return 'Mini';
+    case 'car':
+    case 'sedan':
+      return 'Car';
+    case 'van':
+      return 'Van';
+    default:
+      return null;
+  }
+}
+
+function getVehicleIconName(category: ReturnType<typeof getVehicleCategory>) {
+  if (category === 'Bike') return 'bicycle';
+  if (category === 'Tuk') return 'car-outline';
+  if (category === 'Van') return 'bus-outline';
+  return 'car-sport';
 }
 
 function formatVehicle(vehicle: DriverUser['vehicle']) {
