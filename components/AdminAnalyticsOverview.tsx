@@ -1,10 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
+
+type AdminAnalytics = {
+  totalRevenue: number;
+  activeRides: number;
+  cancelledRides: number;
+  waitTimeAvg: string | number;
+};
 
 export function AdminAnalyticsOverview() {
   const theme = Colors['light'];
+  const [data, setData] = useState<AdminAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAnalytics = async () => {
+      try {
+        const response = await authFetch(`${API_BASE_URL}/admin/dashboard/analytics`);
+        const result = await parseApiResponse<AdminAnalytics>(response);
+        
+        if (isMounted) {
+          setData(result);
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard analytics', error);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30 seconds
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const palette = {
     background: theme.background,
@@ -21,29 +57,29 @@ export function AdminAnalyticsOverview() {
   const metrics = [
     { 
       title: 'Total Revenue', 
-      amount: 'Rs. 248,500', 
-      percent: '+12.4%', 
+      amount: `Rs. ${data?.totalRevenue.toLocaleString() || 0}`, 
+      percent: 'Today', 
       isPositive: true,
       icon: 'wallet-outline' as const
     },
     { 
-      title: 'System Active Rides', 
-      amount: '243', 
-      percent: '+18 today', 
+      title: 'Current Active Rides', 
+      amount: data?.activeRides.toString() || '0', 
+      percent: 'Live', 
       isPositive: true,
       icon: 'navigate-circle-outline' as const
     },
     { 
       title: 'Wait-time Avg', 
-      amount: '3.4 min', 
-      percent: '-0.8 min', 
+      amount: `${data?.waitTimeAvg || 0} min`, 
+      percent: 'Live', 
       isPositive: true,
       icon: 'time-outline' as const
     },
     { 
       title: 'Cancelled Rides', 
-      amount: '14', 
-      percent: '+2 vs yday', 
+      amount: data?.cancelledRides.toString() || '0', 
+      percent: 'Today', 
       isPositive: false,
       icon: 'close-circle-outline' as const
     }
@@ -51,7 +87,10 @@ export function AdminAnalyticsOverview() {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.sectionTitle, { color: palette.text }]}>Platform Performance</Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>Platform Performance</Text>
+        {loading && !data && <ActivityIndicator size="small" color={palette.accent} />}
+      </View>
       
       <View style={styles.grid}>
         {metrics.map((metric, index) => (
@@ -99,6 +138,13 @@ export function AdminAnalyticsOverview() {
 const styles = StyleSheet.create({
   container: {
     marginVertical: 16,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingRight: 12,
   },
   sectionTitle: {
     fontSize: 18,
