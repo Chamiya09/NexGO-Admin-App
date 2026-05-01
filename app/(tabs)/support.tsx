@@ -24,6 +24,13 @@ const ticketFilters = ['All', 'Open', 'Urgent', 'Resolved'] as const;
 
 type FilterValue = (typeof ticketFilters)[number];
 
+const getStatusTone = (status: AdminSupportTicket['status']) => {
+  if (status === 'Resolved') return { text: '#157A62', bg: '#E8F7F0', icon: 'checkmark-done-outline' as const };
+  if (status === 'Closed') return { text: '#667085', bg: '#F2F4F7', icon: 'lock-closed-outline' as const };
+  if (status === 'In Review') return { text: '#B27A00', bg: '#FFF7E2', icon: 'hourglass-outline' as const };
+  return { text: teal, bg: '#E7F5F3', icon: 'radio-button-on-outline' as const };
+};
+
 type AdminSupportTicket = {
   id: string;
   passenger?: {
@@ -210,24 +217,36 @@ export default function AdminSupportScreen() {
           </View>
         ) : filteredTickets.map((ticket) => {
           const isUrgent = ticket.priority === 'Urgent';
-          const isResolved = ticket.status === 'Resolved';
+          const statusTone = getStatusTone(ticket.status);
 
           return (
             <View key={ticket.id} style={styles.ticketCard}>
+              <View style={[styles.ticketAccent, { backgroundColor: isUrgent ? '#C13B3B' : teal }]} />
               <View style={styles.ticketTopRow}>
-                <View style={styles.ticketIdWrap}>
-                  <Text style={styles.ticketId}>{ticket.id}</Text>
-                  <Text style={styles.ticketSource}>{getPassengerLabel(ticket)}</Text>
+                <View style={styles.ticketIdentityRow}>
+                  <View style={styles.ticketIconWrap}>
+                    <Ionicons name="chatbox-ellipses-outline" size={18} color={teal} />
+                  </View>
+                  <View style={styles.ticketIdWrap}>
+                    <Text style={styles.ticketId}>{ticket.id}</Text>
+                    <Text style={styles.ticketSource} numberOfLines={1}>{getPassengerLabel(ticket)}</Text>
+                  </View>
                 </View>
 
                 <View style={styles.ticketBadgeRow}>
                   <View style={[styles.ticketBadge, isUrgent ? styles.ticketBadgeUrgent : styles.ticketBadgeNormal]}>
+                    <Ionicons
+                      name={isUrgent ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+                      size={12}
+                      color={isUrgent ? '#C13B3B' : teal}
+                    />
                     <Text style={[styles.ticketBadgeText, isUrgent ? styles.ticketBadgeTextUrgent : styles.ticketBadgeTextNormal]}>
                       {ticket.priority}
                     </Text>
                   </View>
-                  <View style={[styles.ticketBadge, isResolved ? styles.ticketBadgeResolved : styles.ticketBadgeOpen]}>
-                    <Text style={[styles.ticketBadgeText, isResolved ? styles.ticketBadgeTextResolved : styles.ticketBadgeTextOpen]}>
+                  <View style={[styles.ticketBadge, { backgroundColor: statusTone.bg }]}>
+                    <Ionicons name={statusTone.icon} size={12} color={statusTone.text} />
+                    <Text style={[styles.ticketBadgeText, { color: statusTone.text }]}>
                       {ticket.status}
                     </Text>
                   </View>
@@ -235,17 +254,20 @@ export default function AdminSupportScreen() {
               </View>
 
               <Text style={styles.ticketTitle}>{ticket.subject}</Text>
-              <Text style={styles.ticketDetail}>{ticket.description}</Text>
+              <Text style={styles.ticketDetail} numberOfLines={3}>{ticket.description}</Text>
 
-              <View style={styles.ticketMetaRow}>
+              <View style={styles.ticketInfoPanel}>
                 <View style={styles.topicPill}>
                   <Ionicons name="albums-outline" size={13} color={teal} />
                   <Text style={styles.topicPillText}>{ticket.topic}</Text>
                 </View>
                 {!!ticket.rideReference && (
-                  <Text style={styles.rideReference} selectable>
-                    Ride: {ticket.rideReference}
-                  </Text>
+                  <View style={styles.referencePill}>
+                    <Ionicons name="receipt-outline" size={13} color="#617C79" />
+                    <Text style={styles.rideReference} selectable>
+                      Ride {ticket.rideReference}
+                    </Text>
+                  </View>
                 )}
               </View>
 
@@ -259,7 +281,7 @@ export default function AdminSupportScreen() {
               <View style={styles.ticketFooter}>
                 <Text style={styles.ticketTime}>{formatTicketTime(ticket)}</Text>
                 <Pressable style={styles.ticketAction} onPress={() => setSelectedTicket(ticket)}>
-                  <Text style={styles.ticketActionText}>Review Ticket</Text>
+                  <Text style={styles.ticketActionText}>Review</Text>
                   <Ionicons name="arrow-forward" size={15} color={teal} />
                 </Pressable>
               </View>
@@ -544,6 +566,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 14,
     marginBottom: 12,
+    overflow: 'hidden',
+  },
+  ticketAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
   ticketTopRow: {
     flexDirection: 'row',
@@ -551,6 +581,20 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'flex-start',
     marginBottom: 10,
+  },
+  ticketIdentityRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  ticketIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ticketIdWrap: {
     flex: 1,
@@ -567,13 +611,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   ticketBadgeRow: {
-    flexDirection: 'row',
+    alignItems: 'flex-end',
     gap: 8,
   },
   ticketBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   ticketBadgeUrgent: {
     backgroundColor: '#FFF1F1',
@@ -616,7 +663,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 12,
   },
-  ticketMetaRow: {
+  ticketInfoPanel: {
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
@@ -636,6 +688,17 @@ const styles = StyleSheet.create({
     color: teal,
     fontSize: 11,
     fontWeight: '800',
+  },
+  referencePill: {
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   rideReference: {
     color: '#617C79',
@@ -677,6 +740,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
   ticketActionText: {
     color: teal,
