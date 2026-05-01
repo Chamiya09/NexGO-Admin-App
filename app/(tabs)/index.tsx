@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { AdminAnalyticsOverview } from '@/components/AdminAnalyticsOverview';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
   AdminDriverLocation,
@@ -26,15 +27,6 @@ import {
 } from '@/lib/adminSocket';
 
 const teal = '#008080';
-
-const stats = [
-  { title: 'Total Revenue Today', value: '$18,420', change: '+12.4%', icon: 'cash-outline' as const },
-  { title: 'Active Rides', value: '148', change: '+9 live now', icon: 'car-sport-outline' as const },
-  { title: 'Available Drivers', value: '326', change: '81% online', icon: 'people-outline' as const },
-  { title: 'Pending Approvals', value: '17', change: 'Needs review', icon: 'document-text-outline' as const },
-];
-
-const weeklyRides = [86, 112, 98, 134, 162, 149, 184];
 
 const vehicleMarkerImages: Record<'Bike' | 'Tuk' | 'Mini' | 'Car' | 'Van' | 'Default', ImageSourcePropType> = {
   Bike: require('../../assets/images/vehicle-markers/bike-top.png'),
@@ -66,8 +58,6 @@ export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const isMedium = width >= 720;
-  const chartHeight = 220;
-  const maxValue = Math.max(...weeklyRides);
   const mapRef = useRef<MapView | null>(null);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
   const [driverLocations, setDriverLocations] = useState<Record<string, DriverLocation>>({});
@@ -224,6 +214,8 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
 
+        <AdminAnalyticsOverview />
+
         <View style={styles.liveMapCard}>
           <View style={[styles.liveMapHeader, isMedium ? styles.liveMapHeaderWide : null]}>
             <View style={styles.liveMapTitleGroup}>
@@ -335,72 +327,6 @@ export default function AdminDashboardScreen() {
               </View>
             </View>
           )}
-        </View>
-
-        <View style={[styles.statsGrid, isWide ? styles.statsGridWide : null]}>
-          {stats.map((stat) => (
-            <View key={stat.title} style={[styles.statCard, isWide ? styles.statCardWide : null]}>
-              <View style={styles.statCardTop}>
-                <View style={styles.statIconWrap}>
-                  <Ionicons name={stat.icon} size={20} color={teal} />
-                </View>
-                <Text style={styles.statChange}>{stat.change}</Text>
-              </View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statTitle}>{stat.title}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={[styles.analyticsRow, isWide ? styles.analyticsRowWide : null]}>
-          <View style={[styles.chartCard, isWide ? styles.chartCardMain : null]}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardEyebrow}>WEEKLY TREND</Text>
-                <Text style={styles.cardTitle}>Completed rides</Text>
-              </View>
-              <View style={styles.cardPill}>
-                <Text style={styles.cardPillText}>Last 7 days</Text>
-              </View>
-            </View>
-
-            <View style={[styles.chartArea, { height: chartHeight }]}>
-              <View style={styles.chartGrid}>
-                {[0, 1, 2, 3].map((line) => (
-                  <View key={line} style={styles.chartGridLine} />
-                ))}
-              </View>
-
-              <View style={styles.chartBarsRow}>
-                {weeklyRides.map((value, index) => {
-                  const barHeight = Math.max((value / maxValue) * (chartHeight - 52), 28);
-                  return (
-                    <View key={`${value}-${index}`} style={styles.chartColumn}>
-                      <Text style={styles.chartValue}>{value}</Text>
-                      <View style={[styles.chartBar, { height: barHeight }]} />
-                      <Text style={styles.chartLabel}>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.chartCard, isWide ? styles.chartCardSide : null]}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardEyebrow}>QUICK WATCH</Text>
-                <Text style={styles.cardTitle}>Ops priorities</Text>
-              </View>
-            </View>
-
-            <View style={styles.priorityList}>
-              <PriorityRow title="Driver document reviews" value="17 waiting" tone="warning" />
-              <PriorityRow title="Search-to-match delay" value="2.4 min avg" tone="neutral" />
-              <PriorityRow title="High-demand zones" value="Colombo 03, Kandy" tone="accent" />
-              <PriorityRow title="Escalated support cases" value="6 open" tone="danger" />
-            </View>
-          </View>
         </View>
       </RefreshableScrollView>
 
