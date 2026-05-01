@@ -22,8 +22,8 @@ import { API_BASE_URL, parseApiResponse } from '@/lib/api';
 const teal = '#008080';
 
 const requesterFilters = ['Passenger', 'Driver'] as const;
-const ticketFilters = ['All', 'Pending', 'Urgent', 'Resolved'] as const;
 const supportStatuses = ['Pending', 'Open', 'In Review', 'Resolved', 'Closed'] as const;
+const ticketFilters = ['All', ...supportStatuses, 'Urgent'] as const;
 
 type RequesterFilterValue = (typeof requesterFilters)[number];
 type FilterValue = (typeof ticketFilters)[number];
