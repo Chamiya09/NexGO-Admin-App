@@ -49,6 +49,12 @@ type DriverUser = {
   phoneNumber: string;
   profileImageUrl?: string;
   status?: string;
+  documents?: {
+    documentType: string;
+    fileUrl: string;
+    status: string;
+    submittedAt?: string;
+  }[];
   vehicle?: {
     category?: string;
     make?: string;
@@ -106,8 +112,13 @@ export default function AdminUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [passengerFilter, setPassengerFilter] = useState<PassengerFilter>('all');
+  const [passengerSearch, setPassengerSearch] = useState('');
   const [driverSearch, setDriverSearch] = useState('');
   const [driverStatusFilter, setDriverStatusFilter] = useState<DriverStatusFilter>('all');
+
+  const [docModalVisible, setDocModalVisible] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<DriverUser | null>(null);
+  const [docReviewing, setDocReviewing] = useState<string | null>(null);
 
   const loadManagementData = useCallback(async () => {
     setLoading(true);
@@ -140,6 +151,42 @@ export default function AdminUsersScreen() {
     void loadManagementData();
   }, [loadManagementData]);
 
+  const handleManageDriverDocs = useCallback((driver: DriverUser) => {
+    if (!driver.id) return;
+    setSelectedDriver(driver);
+    setDocModalVisible(true);
+  }, []);
+
+  const handleReviewDocument = useCallback(async (driverId: string, documentType: string, status: 'approved' | 'rejected') => {
+    try {
+      setDocReviewing(documentType);
+      const res = await authFetch(`${API_BASE_URL}/driver-auth/drivers/${driverId}/documents/${documentType}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await parseApiResponse(res);
+      if (!data.success) {
+        setErrorMessage(data.message || `Failed to ${status} document`);
+      } else {
+        await loadManagementData();
+        // Update local modal state
+        setSelectedDriver(prev => {
+          if (!prev) return prev;
+          const updatedDocs = prev.documents?.map(doc => 
+            doc.documentType === documentType ? { ...doc, status } : doc
+          );
+          return { ...prev, documents: updatedDocs };
+        });
+      }
+    } catch (err) {
+      setErrorMessage(`Network error reviewing document`);
+      console.error(err);
+    } finally {
+      setDocReviewing(null);
+    }
+  }, [loadManagementData]);
+
   const driverStats = useMemo(() => getDriverStats(driverUsers), [driverUsers]);
 
   const passengerStats = useMemo(() => {
@@ -152,20 +199,27 @@ export default function AdminUsersScreen() {
   }, [passengerUsers]);
 
   const filteredPassengers = useMemo(() => {
-    if (passengerFilter === 'with-photo') {
-      return passengerUsers.filter((user) => Boolean(user.profileImageUrl));
-    }
+    const normalizedSearch = passengerSearch.trim().toLowerCase();
 
-    if (passengerFilter === 'no-photo') {
-      return passengerUsers.filter((user) => !user.profileImageUrl);
-    }
+    return passengerUsers.filter((user) => {
+      // Filter by status/photo
+      if (passengerFilter === 'with-photo' && !user.profileImageUrl) return false;
+      if (passengerFilter === 'no-photo' && user.profileImageUrl) return false;
+      if (passengerFilter === 'with-phone' && !user.phoneNumber) return false;
 
-    if (passengerFilter === 'with-phone') {
-      return passengerUsers.filter((user) => Boolean(user.phoneNumber));
-    }
+      if (!normalizedSearch) return true;
 
-    return passengerUsers;
-  }, [passengerUsers, passengerFilter]);
+      // Filter by search text
+      return [
+        user.fullName,
+        user.email,
+        user.phoneNumber,
+        user.id,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalizedSearch));
+    });
+  }, [passengerUsers, passengerFilter, passengerSearch]);
 
   const filteredDrivers = useMemo(() => {
     const normalizedSearch = driverSearch.trim().toLowerCase();
@@ -279,21 +333,27 @@ export default function AdminUsersScreen() {
           <Pressable
             style={[styles.tabButton, activeTab === 'admins' ? styles.tabButtonActive : null]}
             onPress={() => setActiveTab('admins')}>
-            <Text style={[styles.tabButtonText, activeTab === 'admins' ? styles.tabButtonTextActive : null]}>
+            <Text
+              style={[styles.tabButtonText, activeTab === 'admins' ? styles.tabButtonTextActive : null]}
+              numberOfLines={1}>
               Admins
             </Text>
           </Pressable>
           <Pressable
             style={[styles.tabButton, activeTab === 'passengers' ? styles.tabButtonActive : null]}
             onPress={() => setActiveTab('passengers')}>
-            <Text style={[styles.tabButtonText, activeTab === 'passengers' ? styles.tabButtonTextActive : null]}>
+            <Text
+              style={[styles.tabButtonText, activeTab === 'passengers' ? styles.tabButtonTextActive : null]}
+              numberOfLines={1}>
               Passengers
             </Text>
           </Pressable>
           <Pressable
             style={[styles.tabButton, activeTab === 'drivers' ? styles.tabButtonActive : null]}
             onPress={() => setActiveTab('drivers')}>
-            <Text style={[styles.tabButtonText, activeTab === 'drivers' ? styles.tabButtonTextActive : null]}>
+            <Text
+              style={[styles.tabButtonText, activeTab === 'drivers' ? styles.tabButtonTextActive : null]}
+              numberOfLines={1}>
               Drivers
             </Text>
           </Pressable>
@@ -311,13 +371,13 @@ export default function AdminUsersScreen() {
           </View>
         ) : activeTab === 'admins' ? (
           <View style={styles.panelCard}>
-            <View style={[styles.panelHeader, styles.adminPanelHeader]}>
+            <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
               <View style={styles.adminHeaderTitleWrap}>
                 <Text style={styles.panelEyebrow}>ADMIN ACCOUNTS</Text>
                 <Text style={styles.panelTitle}>Admin management</Text>
               </View>
-              <View style={[styles.adminHeaderActions, !isWide ? styles.adminHeaderActionsCompact : null]}>
-                <View style={[styles.panelBadge, styles.adminCountBadge]}>
+              <View style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 1 }}>
+                <View style={styles.panelBadge}>
                   <Text style={styles.panelBadgeText}>{adminUsers.length} admins</Text>
                 </View>
                 <Pressable style={styles.createAdminButton} onPress={openCreateAdminModal}>
@@ -355,8 +415,8 @@ export default function AdminUsersScreen() {
         ) : activeTab === 'drivers' ? (
           <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
             <View style={[styles.panelCard, isWide ? styles.mainPanel : null]}>
-              <View style={styles.panelHeader}>
-                <View>
+              <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
+                <View style={styles.adminHeaderTitleWrap}>
                   <Text style={styles.panelEyebrow}>DRIVER MANAGEMENT</Text>
                   <Text style={styles.panelTitle}>Fleet overview & action center</Text>
                 </View>
@@ -443,6 +503,11 @@ export default function AdminUsersScreen() {
 
                   <View style={styles.driverActionRow}>
                     <DriverActionButton
+                      icon="document-text-outline"
+                      label="Docs"
+                      onPress={() => handleManageDriverDocs(driver)}
+                    />
+                    <DriverActionButton
                       icon="call-outline"
                       label="Call"
                       onPress={() => handleDriverCall(driver.phoneNumber)}
@@ -470,70 +535,75 @@ export default function AdminUsersScreen() {
             </View>
           </View>
         ) : (
-          <View style={styles.panelCard}
-            >
-            <View style={styles.heroCard}>
-              <View style={styles.heroTopRow}>
-                <View style={styles.heroIcon}>
-                  <Ionicons name="people-outline" size={24} color={teal} />
+          <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
+            <View style={[styles.panelCard, isWide ? styles.mainPanel : null]}>
+              <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
+                <View style={styles.adminHeaderTitleWrap}>
+                  <Text style={styles.panelEyebrow}>PASSENGER MANAGEMENT</Text>
+                  <Text style={styles.panelTitle}>Passenger overview & actions</Text>
                 </View>
-                <View style={styles.heroIdentity}>
-                  <Text style={styles.heroName}>User Management</Text>
-                  <Text style={styles.heroSubline}>
-                    Track passenger accounts, verify profiles, and flag suspicious activity quickly.
-                  </Text>
+                <View style={styles.panelBadge}>
+                  <Text style={styles.panelBadgeText}>{passengerStats.total} passengers</Text>
                 </View>
               </View>
 
-              <View style={styles.heroBadge}>
-                <Ionicons name="shield-checkmark-outline" size={14} color={teal} />
-                <Text style={styles.heroBadgeText}>Account oversight</Text>
+              <View style={styles.driverStatsRow}>
+                <DriverStatCard label="Total" value={passengerStats.total} accent="#0F766E" />
+                <DriverStatCard label="With Photo" value={passengerStats.withPhoto} accent="#0F766E" />
+                <DriverStatCard label="With Phone" value={passengerStats.withPhone} accent="#0F766E" />
+                <DriverStatCard label="No Photo" value={passengerStats.noPhoto} accent="#64748B" />
               </View>
 
-              <Text style={styles.heroHint}>
-                Focus on passenger trust, profile completeness, and outreach readiness.
-              </Text>
-            </View>
-
-            <View style={styles.metricGrid}>
-              <MetricCard label="Total" value={String(passengerStats.total)} icon="list-outline" />
-              <MetricCard label="With Photo" value={String(passengerStats.withPhoto)} icon="image-outline" />
-              <MetricCard label="With Phone" value={String(passengerStats.withPhone)} icon="call-outline" />
-            </View>
-
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>USER FILTER</Text>
-              <Text style={styles.sectionHint}>Manage user segments</Text>
-            </View>
-
-            <View style={styles.filterCard}>
-              <View style={styles.filterRow}>
-                {passengerFilters.map((filter) => {
-                  const selected = passengerFilter === filter.value;
-
-                  return (
+              <View style={styles.driverControlsRow}>
+                <View style={styles.driverSearchWrap}>
+                  <Ionicons name="search-outline" size={16} color="#7A908D" />
+                  <TextInput
+                    style={styles.driverSearchInput}
+                    placeholder="Search by name, email, phone"
+                    placeholderTextColor="#8AA19E"
+                    value={passengerSearch}
+                    onChangeText={setPassengerSearch}
+                  />
+                </View>
+                <View style={styles.driverFilterRow}>
+                  {passengerFilters.map((filter) => (
                     <Pressable
                       key={filter.value}
-                      style={[styles.filterButton, selected ? styles.filterButtonActive : null]}
+                      style={[
+                        styles.driverFilterChip,
+                        passengerFilter === filter.value ? styles.driverFilterChipActive : null,
+                      ]}
                       onPress={() => setPassengerFilter(filter.value)}>
-                      <Text style={[styles.filterText, selected ? styles.filterTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.driverFilterText,
+                          passengerFilter === filter.value ? styles.driverFilterTextActive : null,
+                        ]}>
                         {filter.label}
                       </Text>
                     </Pressable>
-                  );
-                })}
+                  ))}
+                </View>
               </View>
+
+              {filteredPassengers.length === 0 ? (
+                <EmptyStateCard icon="people-outline" text="No passenger accounts match the selected filter." />
+              ) : null}
+
+              {filteredPassengers.map((user) => (
+                <PassengerAccountCard key={user.id} user={user} />
+              ))}
             </View>
 
-            <Text style={styles.sectionTitle}>PASSENGERS</Text>
-
-            {filteredPassengers.length === 0 ? (
-              <EmptyStateCard icon="people-outline" text="No passenger accounts match the selected filter." />
-            ) : null}
-
-            {filteredPassengers.map((user) => (
-              <PassengerAccountCard key={user.id} user={user} />
-            ))}
+            <View style={[styles.panelCard, isWide ? styles.sidePanel : null]}>
+              <Text style={styles.panelEyebrow}>ACTIONS</Text>
+              <Text style={styles.panelTitle}>Passenger support playbook</Text>
+              <View style={styles.policyList}>
+                <PolicyRow text="Verify passenger details before issuing refunds." />
+                <PolicyRow text="Encourage users to upload profile photos for safety." />
+                <PolicyRow text="Watch for multiple accounts using the same phone number." />
+              </View>
+            </View>
           </View>
         )}
       </RefreshableScrollView>
@@ -546,6 +616,16 @@ export default function AdminUsersScreen() {
         onChange={handleNewAdminChange}
         onCreate={createAdminAccount}
         onClose={closeCreateAdminModal}
+      />
+      <DriverDocsModal
+        visible={docModalVisible}
+        driver={selectedDriver}
+        onClose={() => {
+          setDocModalVisible(false);
+          setSelectedDriver(null);
+        }}
+        onReview={handleReviewDocument}
+        reviewingDoc={docReviewing}
       />
     </SafeAreaView>
   );
@@ -985,6 +1065,253 @@ function getDriverStatusTone(status: NormalizedDriverStatus) {
   }
 }
 
+const docStatusMeta: Record<string, { label: string; color: string; backgroundColor: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  approved: {
+    label: 'APPROVED',
+    color: '#157A62',
+    backgroundColor: '#E9F8EF',
+    icon: 'checkmark-circle-outline',
+  },
+  review: {
+    label: 'IN REVIEW',
+    color: '#9A6B00',
+    backgroundColor: '#FFF7E0',
+    icon: 'time-outline',
+  },
+  missing: {
+    label: 'MISSING',
+    color: '#C13B3B',
+    backgroundColor: '#FFF4F4',
+    icon: 'alert-circle-outline',
+  },
+  rejected: {
+    label: 'REJECTED',
+    color: '#C13B3B',
+    backgroundColor: '#FFF4F4',
+    icon: 'close-circle-outline',
+  },
+};
+
+const docInfoMeta: Record<string, { title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  license: {
+    title: 'Driver License',
+    subtitle: 'Front and back images of your valid license',
+    icon: 'id-card-outline',
+  },
+  insurance: {
+    title: 'Vehicle Insurance',
+    subtitle: 'Active insurance document for your registered car',
+    icon: 'shield-checkmark-outline',
+  },
+  registration: {
+    title: 'Vehicle Registration',
+    subtitle: 'Registration certificate matching your license plate',
+    icon: 'document-text-outline',
+  },
+};
+
+function DriverDocsModal({
+  visible,
+  driver,
+  onClose,
+  onReview,
+  reviewingDoc,
+}: {
+  visible: boolean;
+  driver: DriverUser | null;
+  onClose: () => void;
+  onReview: (driverId: string, documentType: string, status: 'approved' | 'rejected') => void;
+  reviewingDoc: string | null;
+}) {
+  if (!driver) return null;
+
+  const [previewDoc, setPreviewDoc] = useState<{
+    title: string;
+    fileUrl?: string;
+  } | null>(null);
+
+  const documents = driver.documents ?? [];
+  const totals = documents.reduce(
+    (acc, doc) => {
+      const status = doc.status || 'review';
+      acc.total += 1;
+      if (status === 'approved') acc.approved += 1;
+      if (status === 'rejected') acc.rejected += 1;
+      if (status === 'review' || status === 'pending') acc.review += 1;
+      return acc;
+    },
+    { total: 0, approved: 0, rejected: 0, review: 0 }
+  );
+  const { pillStyle, textStyle, label } = getDriverStatusTone(normalizeDriverStatus(driver.status));
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { maxWidth: 680 }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTextWrap}>
+              <Text style={styles.modalTitle}>Driver Documents</Text>
+              <Text style={styles.modalSubtitle}>Review uploaded documents before approval.</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.modalCloseButton}>
+              <Ionicons name="close" size={20} color="#102A28" />
+            </Pressable>
+          </View>
+
+          <View style={styles.modalDriverRow}>
+            <ProfileAvatar imageUrl={driver.profileImageUrl} name={driver.fullName} fallback="D" size={52} />
+            <View style={styles.modalDriverTextWrap}>
+              <Text style={styles.modalDriverName} numberOfLines={1}>{driver.fullName}</Text>
+              <Text style={styles.modalDriverMeta} numberOfLines={1}>
+                {driver.email} | {driver.phoneNumber || 'No phone'}
+              </Text>
+            </View>
+            <View style={[styles.driverStatusPill, pillStyle]}>
+              <Text style={[styles.driverStatusText, textStyle]}>{label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.modalMetaGrid}>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>Total Docs</Text>
+              <Text style={styles.modalMetaValue}>{totals.total}</Text>
+            </View>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>In Review</Text>
+              <Text style={styles.modalMetaValue}>{totals.review}</Text>
+            </View>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>Approved</Text>
+              <Text style={styles.modalMetaValue}>{totals.approved}</Text>
+            </View>
+          </View>
+          
+          <ScrollView contentContainerStyle={styles.modalScrollContent}>
+            {documents.length > 0 ? (
+              documents.map((doc, idx) => {
+                const meta = docStatusMeta[doc.status] || docStatusMeta['missing'];
+                const info = docInfoMeta[doc.documentType] || { title: doc.documentType.toUpperCase(), subtitle: '', icon: 'document-text-outline' };
+                const dt = doc.submittedAt ? new Date(doc.submittedAt).toLocaleDateString() : '';
+
+                return (
+                  <View key={`${doc.documentType}-${idx}`} style={styles.docCard}>
+                    <View style={styles.docHeader}>
+                      <View style={styles.docLeft}>
+                        <View style={styles.docIconWrap}>
+                          <Ionicons name={info.icon} size={21} color={teal} />
+                        </View>
+                        <View style={styles.docTextWrap}>
+                          <Text style={styles.docTitle}>{info.title}</Text>
+                          <Text style={styles.docSubtitle}>{info.subtitle}</Text>
+                        </View>
+                      </View>
+                      <View style={[styles.statusPill, { backgroundColor: meta.backgroundColor }]}>
+                        <Ionicons name={meta.icon} size={13} color={meta.color} />
+                        <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.inlineDivider} />
+
+                    <View style={styles.docBody}>
+                      {doc.fileUrl ? (
+                        <Image source={{ uri: doc.fileUrl }} style={styles.docImagePreview} contentFit="contain" />
+                      ) : (
+                        <View style={styles.docEmptyState}>
+                          <Ionicons name="document-outline" size={20} color="#8AA19E" />
+                          <Text style={styles.noDocText}>No attachment provided</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.docFooter}>
+                      <View style={styles.updatedWrap}>
+                        <Text style={styles.updatedText}>
+                          {doc.status === 'review' ? `Submitted ${dt}` 
+                          : doc.status === 'approved' ? `Approved ${dt}` 
+                          : doc.status === 'rejected' ? `Rejected ${dt}` 
+                          : `Last Updated ${dt}`}
+                        </Text>
+                      </View>
+                      <View style={styles.docActionGroupRow}>
+                        <Pressable
+                          style={[styles.actionBtnView, !doc.fileUrl ? styles.docActionButtonDisabled : null]}
+                          disabled={!doc.fileUrl}
+                          onPress={() =>
+                            setPreviewDoc({
+                              title: info.title,
+                              fileUrl: doc.fileUrl,
+                            })
+                          }
+                        >
+                          <Ionicons name="expand-outline" size={16} color={teal} />
+                          <Text style={[styles.docActionText, { color: teal }]}>View</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.actionBtnApprove, reviewingDoc === doc.documentType || doc.status === 'approved' ? styles.docActionButtonDisabled : null]}
+                            disabled={reviewingDoc === doc.documentType || doc.status === 'approved'}
+                            onPress={() => onReview(driver.id, doc.documentType, 'approved')}
+                        >
+                          <Ionicons name="checkmark-outline" size={16} color="#157A62" />
+                          <Text style={[styles.docActionText, { color: '#157A62' }]}>Approve</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.actionBtnReject, reviewingDoc === doc.documentType || doc.status === 'rejected' ? styles.docActionButtonDisabled : null]}
+                            disabled={reviewingDoc === doc.documentType || doc.status === 'rejected'}
+                            onPress={() => onReview(driver.id, doc.documentType, 'rejected')}
+                        >
+                          <Ionicons name="close-outline" size={16} color="#C13B3B" />
+                          <Text style={[styles.docActionText, { color: '#C13B3B' }]}>Reject</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.noDocsMessage}>No documents uploaded by this driver yet.</Text>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+      <Modal
+        visible={Boolean(previewDoc)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewDoc(null)}
+      >
+        <View style={styles.fullScreenOverlay}>
+          <View style={styles.fullScreenCard}>
+            <View style={styles.fullScreenHeader}>
+              <Text style={styles.fullScreenTitle}>{previewDoc?.title}</Text>
+              <Pressable
+                onPress={() => setPreviewDoc(null)}
+                style={styles.fullScreenCloseButton}
+              >
+                <Ionicons name="close" size={20} color="#102A28" />
+              </Pressable>
+            </View>
+            <View style={styles.fullScreenBody}>
+              {previewDoc?.fileUrl ? (
+                <Image
+                  source={{ uri: previewDoc.fileUrl }}
+                  style={styles.fullScreenImage}
+                  contentFit="contain"
+                />
+              ) : (
+                <View style={styles.docEmptyState}>
+                  <Ionicons name="document-outline" size={20} color="#8AA19E" />
+                  <Text style={styles.noDocText}>No attachment provided</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </Modal>
+  );
+}
+
 function handleDriverCall(phoneNumber?: string) {
   if (!phoneNumber) {
     return;
@@ -1002,15 +1329,241 @@ function handleDriverMessage(phoneNumber?: string) {
 }
 
 const styles = StyleSheet.create({
+  modalScrollContent: {
+    padding: 16,
+  },
+  modalDriverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  modalDriverTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalDriverName: {
+    color: '#102A28',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  modalDriverMeta: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  docCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    marginBottom: 10,
+  },
+  docHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  docLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 11,
+  },
+  docIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docTextWrap: {
+    flex: 1,
+  },
+  docTitle: {
+    color: '#102A28',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  docSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+  },
+  statusPill: {
+    minHeight: 24,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  inlineDivider: {
+    height: 1,
+    backgroundColor: '#D9E9E6',
+    marginVertical: 11,
+  },
+  docBody: {
+    marginBottom: 11,
+  },
+  docFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  docEmptyState: {
+    minHeight: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5F0EE',
+    backgroundColor: '#F7FBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 12,
+  },
+  updatedWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  updatedText: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  docActionGroupRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtnView: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C9E4E0',
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  actionBtnApprove: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#157A62',
+    backgroundColor: '#E9F8EF',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  actionBtnReject: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C13B3B',
+    backgroundColor: '#FFF4F4',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  docActionText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  docImagePreview: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  noDocText: {
+    color: '#7A908D',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  docActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  fullScreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(7, 21, 19, 0.72)',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    justifyContent: 'center',
+  },
+  fullScreenCard: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  fullScreenHeader: {
+    minHeight: 54,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5F0EE',
+  },
+  fullScreenTitle: {
+    flex: 1,
+    color: '#102A28',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  fullScreenCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F4F8F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullScreenBody: {
+    flex: 1,
+    padding: 16,
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F7FBFA',
+    borderRadius: 16,
+  },
+  noDocsMessage: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 20,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F8F7',
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
   },
   container: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 28,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   topBar: {
     minHeight: 42,
@@ -1055,34 +1608,39 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    borderRadius: 16,
-    backgroundColor: '#E7F5F3',
-    padding: 4,
-    marginBottom: 18,
-    gap: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    marginBottom: 12,
+    gap: 7,
+    flexWrap: 'nowrap',
+    paddingRight: 12,
   },
   tabButton: {
-    minHeight: 40,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    minWidth: 120,
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    backgroundColor: teal,
+    borderColor: teal,
   },
   tabButtonText: {
-    color: '#3D5F5B',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#102A28',
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   tabButtonTextActive: {
-    color: teal,
+    color: '#FFFFFF',
   },
   splitLayout: {
     gap: 16,
@@ -1282,13 +1840,12 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: 7,
+    paddingRight: 8,
   },
   filterButton: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    minWidth: 126,
+    minWidth: 120,
     minHeight: 34,
     borderRadius: 999,
     borderWidth: 1,
