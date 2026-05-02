@@ -83,6 +83,7 @@ const PROFILE_METRICS = [
 export default function AdminProfileScreen() {
   const { admin, logout, refreshSession } = useAdminAuth();
   const [freshAdmin, setFreshAdmin] = useState<typeof admin>(null);
+  const [metrics, setMetrics] = useState({ approvals: '0', driversLive: '0', escalations: '0' });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -91,11 +92,21 @@ export default function AdminProfileScreen() {
       const loadProfile = async () => {
         try {
           await refreshSession();
-          const response = await authFetch(`${API_BASE_URL}/admin/profile`);
-          const data = await parseApiResponse<{ adminProfile: NonNullable<typeof admin> }>(response);
+          const [profileResponse, analyticsResponse] = await Promise.all([
+            authFetch(`${API_BASE_URL}/admin/profile`),
+            authFetch(`${API_BASE_URL}/admin/dashboard/analytics`)
+          ]);
+          
+          const profileData = await parseApiResponse<{ adminProfile: NonNullable<typeof admin> }>(profileResponse);
+          const analyticsData = await parseApiResponse<{ approvals?: number; driversLive?: number; escalations?: number }>(analyticsResponse);
 
           if (isActive) {
-            setFreshAdmin(data.adminProfile);
+            setFreshAdmin(profileData.adminProfile);
+            setMetrics({
+              approvals: String(analyticsData.approvals ?? 0),
+              driversLive: String(analyticsData.driversLive ?? 0),
+              escalations: String(analyticsData.escalations ?? 0),
+            });
           }
         } catch {
           if (isActive) {
@@ -149,7 +160,11 @@ export default function AdminProfileScreen() {
           </View>
 
           <View style={styles.metricsRow}>
-            {PROFILE_METRICS.map((metric) => (
+            {[
+              { label: 'Approvals', value: metrics.approvals, icon: 'checkmark-done-outline' as const },
+              { label: 'Drivers Live', value: metrics.driversLive, icon: 'car-sport-outline' as const },
+              { label: 'Escalations', value: metrics.escalations, icon: 'alert-circle-outline' as const },
+            ].map((metric) => (
               <View
                 key={metric.label}
                 style={[styles.metricItem, { backgroundColor: palette.elevatedCard, borderColor: palette.border }]}>
