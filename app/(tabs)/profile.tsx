@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -10,11 +10,13 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { useAdminAuth } from '@/context/admin-auth-context';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 type ProfileSection = {
   title: string;
@@ -79,13 +81,47 @@ const PROFILE_METRICS = [
 ];
 
 export default function AdminProfileScreen() {
-  const { admin, logout } = useAdminAuth();
+  const { admin, logout, refreshSession } = useAdminAuth();
+  const [freshAdmin, setFreshAdmin] = useState<typeof admin>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+
+      const loadProfile = async () => {
+        try {
+          await refreshSession();
+          const response = await authFetch(`${API_BASE_URL}/admin/profile`);
+          const data = await parseApiResponse<{ adminProfile: NonNullable<typeof admin> }>(response);
+
+          if (isActive) {
+            setFreshAdmin(data.adminProfile);
+          }
+        } catch {
+          if (isActive) {
+            setFreshAdmin(null);
+          }
+        }
+      };
+
+      void loadProfile();
+
+      return () => {
+        isActive = false;
+      };
+    }, [refreshSession])
+  );
+
+  const visibleAdmin = freshAdmin ?? admin;
   const adminProfile = {
-    fullName: admin?.fullName || 'NexGO Operations Admin',
-    profileImageUrl: admin?.profileImageUrl || '',
-    role: admin?.role || 'Operations Supervisor',
-    scope: admin?.scope || 'Colombo HQ command access',
+    fullName: visibleAdmin?.fullName || 'NexGO Operations Admin',
+    profileImageUrl: visibleAdmin?.profileImageUrl || '',
+    role: visibleAdmin?.role || 'Operations Supervisor',
+    scope: visibleAdmin?.scope || 'Colombo HQ command access',
   };
+  const profileImageUri = adminProfile.profileImageUrl
+    ? `${adminProfile.profileImageUrl}${adminProfile.profileImageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(adminProfile.profileImageUrl)}`
+    : '';
   const initials = adminProfile.fullName
     .split(' ')
     .filter(Boolean)
@@ -100,8 +136,8 @@ export default function AdminProfileScreen() {
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.profileHead}>
             <View style={[styles.avatarCircle, { backgroundColor: palette.accentMuted, borderColor: palette.border }]}>
-              {adminProfile.profileImageUrl ? (
-                <Image source={{ uri: adminProfile.profileImageUrl }} style={styles.avatarImage} contentFit="cover" />
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} contentFit="cover" cachePolicy="none" />
               ) : (
                 <Text style={[styles.avatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
               )}

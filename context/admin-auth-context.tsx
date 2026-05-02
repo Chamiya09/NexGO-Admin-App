@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
@@ -49,11 +49,14 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     await persistAdminSession(nextToken, nextAdmin);
   };
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     const response = await authFetch(`${API_BASE_URL}/admin/session`);
     const data = await parseApiResponse<{ admin: AdminProfile }>(response);
     setAdmin(data.admin);
-  };
+    if (token) {
+      await persistAdminSession(token, data.admin);
+    }
+  }, [token]);
 
   useEffect(() => {
     const hydrateSession = async () => {

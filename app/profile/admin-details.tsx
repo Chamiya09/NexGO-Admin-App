@@ -145,6 +145,31 @@ export default function AdminDetailsScreen() {
     }
   };
 
+  const saveProfileImageUrl = async (profileImageUrl: string) => {
+    const payload = {
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      phoneNumber: form.phoneNumber.trim(),
+      profileImageUrl,
+      role: form.role.trim(),
+      office: form.office.trim(),
+      shift: form.shift.trim(),
+    };
+
+    const response = await authFetch(`${API_BASE_URL}/admin/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await parseApiResponse<{ adminProfile: AdminProfile }>(response);
+
+    setSavedAdmin(data.adminProfile);
+    setForm(data.adminProfile);
+    await refreshSession();
+  };
+
   const uploadAdminProfileImage = async (imageUri: string, fileName: string, mimeType: string) => {
     const body = new FormData();
 
@@ -197,6 +222,8 @@ export default function AdminDetailsScreen() {
         asset.mimeType || 'image/jpeg'
       );
       handleChange('profileImageUrl', uploadedUrl);
+      await saveProfileImageUrl(uploadedUrl);
+      setSuccessMessage('Admin profile image updated successfully.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to upload admin profile image.');
     } finally {
