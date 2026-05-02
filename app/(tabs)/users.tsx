@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   Platform,
@@ -18,11 +19,14 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
+const PDF_PREVIEW_PAGE_LIMIT = 12;
 
 type PassengerUser = {
   id: string;
@@ -1130,6 +1134,33 @@ const docInfoMeta: Record<string, { title: string; subtitle: string; icon: keyof
   },
 };
 
+const isPdfUrl = (url?: string) =>
+  Boolean(url && (/\.pdf($|[?#])/i.test(url) || /\/upload\/.+\.(pdf|PDF)([?#].*)?$/i.test(url)));
+
+const buildCloudinaryPdfPageUrl = (url: string, page: number) => {
+  if (!url.includes('/upload/')) {
+    return null;
+  }
+
+  const [baseUrl, query = ''] = url.split('?');
+  const transformedBase = (
+    /\/(?:image|raw)\/upload\//.test(baseUrl)
+      ? baseUrl.replace(/\/(?:image|raw)\/upload\//, `/image/upload/pg_${page},f_jpg,q_auto,w_1400/`)
+      : baseUrl.replace('/upload/', `/upload/pg_${page},f_jpg,q_auto,w_1400/`)
+  ).replace(/\.pdf$/i, '.jpg');
+
+  return query ? `${transformedBase}?${query}` : transformedBase;
+};
+
+const buildPdfPreviewPages = (url: string) => {
+  const pages = Array.from({ length: PDF_PREVIEW_PAGE_LIMIT }, (_, index) => index + 1)
+    .map((page) => ({ page, uri: buildCloudinaryPdfPageUrl(url, page) }))
+    .filter((item): item is { page: number; uri: string } => Boolean(item.uri));
+
+  return pages;
+};
+
+
 function DriverDocsModal({
   visible,
   driver,
@@ -1143,12 +1174,47 @@ function DriverDocsModal({
   onReview: (driverId: string, documentType: string, status: 'approved' | 'rejected') => void;
   reviewingDoc: string | null;
 }) {
-  if (!driver) return null;
-
+  const [pdfDownloading, setPdfDownloading] = useState<string | null>(null);
+  const [pdfPreviewError, setPdfPreviewError] = useState<string | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+  const [pdfPreviewLoaded, setPdfPreviewLoaded] = useState(0);
+  const [pdfPreviewFailedPages, setPdfPreviewFailedPages] = useState<number[]>([]);
   const [previewDoc, setPreviewDoc] = useState<{
     title: string;
     fileUrl?: string;
   } | null>(null);
+
+  if (!driver) return null;
+
+  const handleOpenPdf = async (url: string) => {
+    try {
+      setPdfDownloading(url);
+      const targetFile = new File(Paths.cache, `${Date.now()}-driver-doc.pdf`);
+      const result = await File.downloadFileAsync(url, targetFile, {
+        headers: {
+          Accept: 'application/pdf',
+        },
+        idempotent: true,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
+        return;
+      }
+
+      await Sharing.shareAsync(result.uri, {
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+        dialogTitle: 'Open PDF with...',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to open PDF.';
+      Alert.alert('PDF error', message);
+    } finally {
+      setPdfDownloading(null);
+    }
+  };
 
   const documents = driver.documents ?? [];
   const totals = documents.reduce(
@@ -1163,6 +1229,9 @@ function DriverDocsModal({
     { total: 0, approved: 0, rejected: 0, review: 0 }
   );
   const { pillStyle, textStyle, label } = getDriverStatusTone(normalizeDriverStatus(driver.status));
+  const previewPdfPages = previewDoc?.fileUrl && isPdfUrl(previewDoc.fileUrl)
+    ? buildPdfPreviewPages(previewDoc.fileUrl)
+    : [];
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -1235,7 +1304,17 @@ function DriverDocsModal({
 
                     <View style={styles.docBody}>
                       {doc.fileUrl ? (
-                        <Image source={{ uri: doc.fileUrl }} style={styles.docImagePreview} contentFit="contain" />
+                        isPdfUrl(doc.fileUrl) ? (
+                          <View style={styles.docPdfPreview}>
+                            <View style={styles.docPdfIcon}>
+                              <Ionicons name="document-text-outline" size={28} color={teal} />
+                            </View>
+                            <Text style={styles.docPdfTitle}>PDF attachment</Text>
+                            <Text style={styles.docPdfSubtitle}>Tap View to preview this document.</Text>
+                          </View>
+                        ) : (
+                          <Image source={{ uri: doc.fileUrl }} style={styles.docImagePreview} contentFit="contain" />
+                        )
                       ) : (
                         <View style={styles.docEmptyState}>
                           <Ionicons name="document-outline" size={20} color="#8AA19E" />
@@ -1257,12 +1336,16 @@ function DriverDocsModal({
                         <Pressable
                           style={[styles.actionBtnView, !doc.fileUrl ? styles.docActionButtonDisabled : null]}
                           disabled={!doc.fileUrl}
-                          onPress={() =>
+                          onPress={() => {
+                            setPdfPreviewError(null);
+                            setPdfPreviewLoading(isPdfUrl(doc.fileUrl));
+                            setPdfPreviewLoaded(0);
+                            setPdfPreviewFailedPages([]);
                             setPreviewDoc({
                               title: info.title,
                               fileUrl: doc.fileUrl,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Ionicons name="expand-outline" size={16} color={teal} />
                           <Text style={[styles.docActionText, { color: teal }]}>View</Text>
@@ -1308,32 +1391,149 @@ function DriverDocsModal({
         visible={Boolean(previewDoc)}
         transparent
         animationType="fade"
-        onRequestClose={() => setPreviewDoc(null)}
+        onRequestClose={() => {
+          setPdfPreviewLoading(false);
+          setPdfPreviewLoaded(0);
+          setPdfPreviewFailedPages([]);
+          setPreviewDoc(null);
+        }}
       >
         <View style={styles.fullScreenOverlay}>
           <View style={styles.fullScreenCard}>
             <View style={styles.fullScreenHeader}>
               <Text style={styles.fullScreenTitle}>{previewDoc?.title}</Text>
               <Pressable
-                onPress={() => setPreviewDoc(null)}
+                onPress={() => {
+                  setPdfPreviewLoading(false);
+                  setPdfPreviewLoaded(0);
+                  setPdfPreviewFailedPages([]);
+                  setPreviewDoc(null);
+                }}
                 style={styles.fullScreenCloseButton}
               >
                 <Ionicons name="close" size={20} color="#102A28" />
               </Pressable>
             </View>
             <View style={styles.fullScreenBody}>
-              {previewDoc?.fileUrl ? (
-                <Image
-                  source={{ uri: previewDoc.fileUrl }}
-                  style={styles.fullScreenImage}
-                  contentFit="contain"
-                />
-              ) : (
-                <View style={styles.docEmptyState}>
-                  <Ionicons name="document-outline" size={20} color="#8AA19E" />
-                  <Text style={styles.noDocText}>No attachment provided</Text>
-                </View>
-              )}
+                {previewDoc?.fileUrl ? (
+                  isPdfUrl(previewDoc.fileUrl) ? (
+                    <View style={styles.fullScreenPdfWrap}>
+                      {previewPdfPages.length > 0 ? (
+                        <ScrollView
+                          style={styles.pdfPageScroll}
+                          contentContainerStyle={styles.pdfPageScrollContent}
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {previewPdfPages.map((page) => {
+                            const isFailedPage = pdfPreviewFailedPages.includes(page.page);
+                            return (
+                              <View
+                                key={`${previewDoc.fileUrl}-${page.page}`}
+                                style={[styles.pdfPageCard, isFailedPage ? styles.pdfPageCardHidden : null]}
+                              >
+                                <Text style={styles.pdfPageLabel}>Page {page.page}</Text>
+                                <Image
+                                  source={{ uri: page.uri }}
+                                  style={styles.pdfPageImage}
+                                  contentFit="contain"
+                                  transition={160}
+                                  onLoad={() => {
+                                    setPdfPreviewLoaded((count) => {
+                                      const nextCount = count + 1;
+                                      if (nextCount > 0) {
+                                        setPdfPreviewLoading(false);
+                                        setPdfPreviewError(null);
+                                      }
+                                      return nextCount;
+                                    });
+                                  }}
+                                  onError={() => {
+                                    setPdfPreviewFailedPages((current) => {
+                                      const nextPages = current.includes(page.page) ? current : [...current, page.page];
+                                      if (nextPages.length >= previewPdfPages.length && pdfPreviewLoaded === 0) {
+                                        setPdfPreviewLoading(false);
+                                        setPdfPreviewError('Unable to generate page previews for this PDF.');
+                                      }
+                                      return nextPages;
+                                    });
+                                  }}
+                                />
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                      ) : (
+                        <View style={styles.pdfEmptyOverlay}>
+                          <View style={styles.pdfActionIcon}>
+                            <Ionicons name="document-text-outline" size={26} color={teal} />
+                          </View>
+                          <Text style={styles.pdfActionTitle}>PDF preview unavailable</Text>
+                          <Text style={styles.pdfActionSubtitle}>
+                            This PDF URL cannot be converted into page images for in-app preview.
+                          </Text>
+                        </View>
+                      )}
+                      {pdfPreviewLoading ? (
+                        <View pointerEvents="none" style={styles.pdfLoadingOverlay}>
+                          <ActivityIndicator size="small" color={teal} />
+                          <Text style={styles.pdfLoadingText}>Loading PDF...</Text>
+                        </View>
+                      ) : null}
+                      {pdfPreviewError ? (
+                        <View style={styles.pdfEmptyOverlay}>
+                          <View style={styles.pdfActionIcon}>
+                            <Ionicons name="document-text-outline" size={26} color={teal} />
+                          </View>
+                          <Text style={styles.pdfActionTitle}>PDF preview unavailable</Text>
+                          <Text style={styles.pdfActionSubtitle}>
+                            The popup could not generate a page image. You can still open it with your device viewer.
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.pdfViewerFooter}>
+                        {pdfPreviewError ? (
+                          <Text style={styles.pdfPreviewError} numberOfLines={2}>
+                            {pdfPreviewError}
+                          </Text>
+                        ) : (
+                          <Text style={styles.pdfPreviewHint}>
+                            {pdfPreviewLoaded > 0
+                              ? `${pdfPreviewLoaded} page${pdfPreviewLoaded === 1 ? '' : 's'} loaded. Scroll to view.`
+                              : 'Generating PDF preview...'}
+                          </Text>
+                        )}
+                        <Pressable
+                          style={[
+                            styles.pdfFallbackButton,
+                            pdfDownloading === previewDoc.fileUrl ? styles.docActionButtonDisabled : null,
+                          ]}
+                          disabled={pdfDownloading === previewDoc.fileUrl}
+                          onPress={() => handleOpenPdf(previewDoc.fileUrl!)}
+                        >
+                          {pdfDownloading === previewDoc.fileUrl ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Ionicons name="open-outline" size={15} color="#FFFFFF" />
+                              <Text style={styles.pdfFallbackButtonText}>Open</Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: previewDoc.fileUrl }}
+                      style={styles.fullScreenImage}
+                      contentFit="contain"
+                    />
+                  )
+                ) : (
+                  <View style={styles.docEmptyState}>
+                    <Ionicons name="document-outline" size={20} color="#8AA19E" />
+                    <Text style={styles.noDocText}>No attachment provided</Text>
+                  </View>
+                )}
             </View>
           </View>
         </View>
@@ -1521,6 +1721,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
   },
+  docPdfPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    gap: 8,
+  },
+  docPdfIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docPdfTitle: {
+    color: '#102A28',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  docPdfSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   noDocText: {
     color: '#7A908D',
     textAlign: 'center',
@@ -1533,13 +1766,17 @@ const styles = StyleSheet.create({
   fullScreenOverlay: {
     flex: 1,
     backgroundColor: 'rgba(7, 21, 19, 0.72)',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 16 : 28,
-    paddingBottom: 28,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 28 : 40,
+    paddingBottom: 40,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   fullScreenCard: {
-    flex: 1,
+    width: '100%',
+    maxWidth: 760,
+    height: '82%',
+    maxHeight: 720,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#D9E9E6',
@@ -1574,13 +1811,126 @@ const styles = StyleSheet.create({
   },
   fullScreenBody: {
     flex: 1,
-    padding: 16,
+    padding: 12,
   },
   fullScreenImage: {
     width: '100%',
     height: '100%',
     backgroundColor: '#F7FBFA',
     borderRadius: 16,
+  },
+  fullScreenPdfWrap: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    overflow: 'hidden',
+  },
+  pdfPageScroll: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#F7FBFA',
+  },
+  pdfPageScrollContent: {
+    padding: 10,
+    gap: 12,
+  },
+  pdfLoadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F7FBFA',
+  },
+  pdfLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    bottom: 54,
+    zIndex: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F7FBFA',
+  },
+  pdfEmptyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    bottom: 54,
+    zIndex: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 10,
+    backgroundColor: '#F7FBFA',
+  },
+  pdfLoadingText: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pdfActionIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pdfActionTitle: {
+    color: '#102A28',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  pdfActionSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  pdfViewerFooter: {
+    minHeight: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  pdfPreviewHint: {
+    flex: 1,
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pdfPreviewError: {
+    flex: 1,
+    color: '#B3261E',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pdfFallbackButton: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: teal,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pdfFallbackButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   noDocsMessage: {
     textAlign: 'center',
@@ -2595,12 +2945,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pdfPageCard: {
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
-    padding: 10,
+    padding: 8,
     gap: 8,
+  },
+  pdfPageCardHidden: {
+    display: 'none',
   },
   pdfPageLabel: {
     color: '#617C79',
@@ -2610,7 +2963,7 @@ const styles = StyleSheet.create({
   },
   pdfPageImage: {
     width: '100%',
-    height: 360,
+    aspectRatio: 0.72,
     backgroundColor: '#F7FBFA',
   },
   previewEmptyState: {
