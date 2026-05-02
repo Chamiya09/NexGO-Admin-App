@@ -35,6 +35,10 @@ type PassengerUser = {
   phoneNumber: string;
   profileImageUrl?: string;
   createdAt?: string;
+  status?: string;
+  walletBalance?: number;
+  savedAddressCount?: number;
+  paymentMethodCount?: number;
 };
 
 type PassengerFilter = 'all' | 'with-photo' | 'no-photo' | 'with-phone';
@@ -125,6 +129,8 @@ export default function AdminUsersScreen() {
   const [docReviewing, setDocReviewing] = useState<string | null>(null);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedProfileDriver, setSelectedProfileDriver] = useState<DriverUser | null>(null);
+  const [passengerProfileVisible, setPassengerProfileVisible] = useState(false);
+  const [selectedPassenger, setSelectedPassenger] = useState<PassengerUser | null>(null);
 
   const loadManagementData = useCallback(async () => {
     setLoading(true);
@@ -267,6 +273,56 @@ export default function AdminUsersScreen() {
         },
       },
     ]);
+  }, []);
+
+  const handleToggleSuspendPassenger = useCallback((passenger: PassengerUser) => {
+    const isSuspended = String(passenger.status || '').toLowerCase() === 'suspended';
+    const nextStatus = isSuspended ? 'active' : 'suspended';
+    const confirmTitle = isSuspended ? 'Unsuspend passenger' : 'Suspend passenger';
+    const confirmMessage = isSuspended
+      ? 'This passenger will be allowed to request rides again.'
+      : 'This passenger will be blocked from requesting new rides.';
+
+    Alert.alert(confirmTitle, confirmMessage, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: isSuspended ? 'Unsuspend' : 'Suspend',
+        style: isSuspended ? 'default' : 'destructive',
+        onPress: async () => {
+          try {
+            setErrorMessage(null);
+            const res = await authFetch(`${API_BASE_URL}/auth/users/${passenger.id}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: nextStatus }),
+            });
+
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const message =
+                typeof body === 'object' && body !== null && 'message' in body
+                  ? String((body as { message?: string }).message)
+                  : 'Request failed';
+              throw new Error(`${message} (HTTP ${res.status})`);
+            }
+
+            const data = await parseApiResponse<{ user: PassengerUser }>(res);
+            setPassengerUsers((current) =>
+              current.map((item) => (item.id === passenger.id ? { ...item, status: data.user.status } : item))
+            );
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unable to update passenger status.';
+            setErrorMessage(message);
+            Alert.alert('Request failed', message);
+          }
+        },
+      },
+    ]);
+  }, []);
+
+  const handleViewPassenger = useCallback((passenger: PassengerUser) => {
+    setSelectedPassenger(passenger);
+    setPassengerProfileVisible(true);
   }, []);
 
   const driverStats = useMemo(() => getDriverStats(driverUsers), [driverUsers]);
@@ -682,7 +738,12 @@ export default function AdminUsersScreen() {
               ) : null}
 
               {filteredPassengers.map((user) => (
-                <PassengerAccountCard key={user.id} user={user} />
+                <PassengerAccountCard
+                  key={user.id}
+                  user={user}
+                  onSuspend={() => handleToggleSuspendPassenger(user)}
+                  onView={() => handleViewPassenger(user)}
+                />
               ))}
             </View>
 
@@ -726,6 +787,14 @@ export default function AdminUsersScreen() {
           setSelectedProfileDriver(null);
         }}
       />
+      <PassengerProfileModal
+        visible={passengerProfileVisible}
+        passenger={selectedPassenger}
+        onClose={() => {
+          setPassengerProfileVisible(false);
+          setSelectedPassenger(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -758,7 +827,16 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
   );
 }
 
-function PassengerAccountCard({ user }: { user: PassengerUser }) {
+function PassengerAccountCard({
+  user,
+  onSuspend,
+  onView,
+}: {
+  user: PassengerUser;
+  onSuspend: () => void;
+  onView: () => void;
+}) {
+  const isSuspended = String(user.status || '').toLowerCase() === 'suspended';
   return (
     <View style={styles.passengerAccountCard}>
       <View style={styles.passengerCardTopRow}>
@@ -782,21 +860,87 @@ function PassengerAccountCard({ user }: { user: PassengerUser }) {
       </View>
 
       <View style={styles.passengerCardFooter}>
-        <View style={styles.passengerProfileState}>
-          <Ionicons
-            name={user.profileImageUrl ? 'image-outline' : 'close-circle-outline'}
-            size={15}
-            color={user.profileImageUrl ? teal : '#8AA19E'}
-          />
-          <Text style={styles.passengerProfileStateText}>
-            {user.profileImageUrl ? 'Profile photo added' : 'No profile photo'}
-          </Text>
+        <View style={styles.passengerActionRow}>
+          <Pressable style={styles.viewButton} onPress={onView}>
+            <Ionicons name="person-outline" size={15} color="#102A28" />
+            <Text style={styles.viewButtonText}>View details</Text>
+          </Pressable>
+          <Pressable
+            style={styles.suspendButton}
+            onPress={onSuspend}>
+            <Ionicons
+              name={isSuspended ? 'refresh-outline' : 'ban-outline'}
+              size={15}
+              color={isSuspended ? '#0F766E' : '#C13B3B'}
+            />
+            <Text style={[styles.suspendButtonText, isSuspended ? styles.suspendButtonTextActive : null]}>
+              {isSuspended ? 'Unsuspend' : 'Suspend'}
+            </Text>
+          </Pressable>
         </View>
-        <Pressable style={styles.suspendButton}>
-          <Ionicons name="ban-outline" size={15} color="#C13B3B" />
-          <Text style={styles.suspendButtonText}>Suspend</Text>
-        </Pressable>
       </View>
+    </View>
+  );
+}
+
+function PassengerProfileModal({
+  visible,
+  passenger,
+  onClose,
+}: {
+  visible: boolean;
+  passenger: PassengerUser | null;
+  onClose: () => void;
+}) {
+  if (!passenger) return null;
+
+  const isSuspended = String(passenger.status || '').toLowerCase() === 'suspended';
+  const createdAtLabel = passenger.createdAt
+    ? new Date(passenger.createdAt).toLocaleDateString()
+    : '—';
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { maxWidth: 520 }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTextWrap}>
+              <Text style={styles.modalTitle}>Passenger Details</Text>
+              <Text style={styles.modalSubtitle}>Profile overview and account status</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.modalCloseButton}>
+              <Ionicons name="close" size={20} color="#102A28" />
+            </Pressable>
+          </View>
+
+          <View style={styles.modalDriverRow}>
+            <ProfileAvatar imageUrl={passenger.profileImageUrl} name={passenger.fullName} fallback="P" size={54} />
+            <View style={styles.modalDriverTextWrap}>
+              <Text style={styles.modalDriverName} numberOfLines={1}>{passenger.fullName}</Text>
+            </View>
+            <View style={[styles.driverStatusPill, isSuspended ? styles.driverStatusPillSuspended : styles.driverStatusPillActive]}>
+              <Text style={[styles.driverStatusText, isSuspended ? styles.driverStatusTextSuspended : styles.driverStatusTextActive]}>
+                {isSuspended ? 'Suspended' : 'Active'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.detailGrid}>
+            <DetailRow label="Name" value={passenger.fullName} />
+            <DetailRow label="Email" value={passenger.email} />
+            <DetailRow label="Phone" value={passenger.phoneNumber || 'No phone'} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={2}>{value}</Text>
     </View>
   );
 }
@@ -3303,5 +3447,59 @@ const styles = StyleSheet.create({
     color: '#C13B3B',
     fontSize: 12,
     fontWeight: '800',
+  },
+  suspendButtonTextActive: {
+    color: '#0F766E',
+  },
+  passengerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewButton: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  viewButtonText: {
+    color: '#102A28',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  detailGrid: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5F0EE',
+    backgroundColor: '#F7FBFA',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  detailLabel: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  detailValue: {
+    flex: 1,
+    textAlign: 'right',
+    color: '#102A28',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
