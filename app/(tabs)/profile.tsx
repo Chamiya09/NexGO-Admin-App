@@ -11,6 +11,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { useAdminAuth } from '@/context/admin-auth-context';
@@ -81,6 +82,7 @@ export default function AdminProfileScreen() {
   const { admin, logout } = useAdminAuth();
   const adminProfile = {
     fullName: admin?.fullName || 'NexGO Operations Admin',
+    profileImageUrl: admin?.profileImageUrl || '',
     role: admin?.role || 'Operations Supervisor',
     scope: admin?.scope || 'Colombo HQ command access',
   };
@@ -98,7 +100,11 @@ export default function AdminProfileScreen() {
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.profileHead}>
             <View style={[styles.avatarCircle, { backgroundColor: palette.accentMuted, borderColor: palette.border }]}>
-              <Text style={[styles.avatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+              {adminProfile.profileImageUrl ? (
+                <Image source={{ uri: adminProfile.profileImageUrl }} style={styles.avatarImage} contentFit="cover" />
+              ) : (
+                <Text style={[styles.avatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+              )}
             </View>
 
             <Text style={[styles.profileName, { color: palette.primaryText }]}>{adminProfile.fullName}</Text>
@@ -230,6 +236,10 @@ const styles = StyleSheet.create({
   avatarInitials: {
     fontSize: 30,
     fontWeight: '800',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   profileName: {
     fontSize: 20,

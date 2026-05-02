@@ -28,6 +28,7 @@ type PassengerUser = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  profileImageUrl?: string;
   createdAt?: string;
 };
 
@@ -45,6 +46,7 @@ type DriverUser = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  profileImageUrl?: string;
   status?: string;
   vehicle?: {
     category?: string;
@@ -178,15 +180,23 @@ export default function AdminUsersScreen() {
               {pendingDriverUsers.map((driver) => (
                 <View key={driver.id} style={styles.reviewCard}>
                   <View style={styles.reviewTopRow}>
-                    <View style={styles.reviewTextWrap}>
-                      <Text style={styles.reviewName}>{driver.fullName}</Text>
-                      <Text style={styles.reviewMeta}>
-                        {formatVehicle(driver.vehicle)} | {driver.vehicle?.plateNumber || 'No plate'}
-                      </Text>
-                      <Text style={styles.reviewDetailLine}>
-                        {formatDriverStatus(driver.status)} | {(driver.documents || []).filter((document) => document.status === 'approved').length}/
-                        {(driver.documents || []).length || 3} documents approved
-                      </Text>
+                    <View style={styles.reviewIdentity}>
+                      <ProfileAvatar
+                        imageUrl={driver.profileImageUrl}
+                        name={driver.fullName}
+                        fallback="D"
+                        size={44}
+                      />
+                      <View style={styles.reviewTextWrap}>
+                        <Text style={styles.reviewName}>{driver.fullName}</Text>
+                        <Text style={styles.reviewMeta}>
+                          {formatVehicle(driver.vehicle)} | {driver.vehicle?.plateNumber || 'No plate'}
+                        </Text>
+                        <Text style={styles.reviewDetailLine}>
+                          {formatDriverStatus(driver.status)} | {(driver.documents || []).filter((document) => document.status === 'approved').length}/
+                          {(driver.documents || []).length || 3} documents approved
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.reviewStatusPill}>
                       <Text style={styles.reviewStatusText}>{getDriverActionLabel(driver)}</Text>
@@ -250,9 +260,7 @@ export default function AdminUsersScreen() {
             {passengerUsers.map((user) => (
               <View key={user.id} style={styles.passengerRow}>
                 <View style={styles.passengerIdentity}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarText}>{user.fullName[0]}</Text>
-                  </View>
+                  <ProfileAvatar imageUrl={user.profileImageUrl} name={user.fullName} fallback="P" />
                   <View>
                     <Text style={styles.reviewName}>{user.fullName}</Text>
                     <Text style={styles.reviewMeta}>
@@ -291,6 +299,35 @@ function EmptyStateCard({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
     <View style={styles.emptyStateCard}>
       <Ionicons name={icon} size={18} color={teal} />
       <Text style={styles.emptyStateText}>{text}</Text>
+    </View>
+  );
+}
+
+function ProfileAvatar({
+  imageUrl,
+  name,
+  fallback,
+  size = 42,
+}: {
+  imageUrl?: string;
+  name: string;
+  fallback: string;
+  size?: number;
+}) {
+  const initial = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 1)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || fallback;
+
+  return (
+    <View style={[styles.avatarCircle, { width: size, height: size, borderRadius: size / 2 }]}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.avatarImage} contentFit="cover" />
+      ) : (
+        <Text style={styles.avatarText}>{initial}</Text>
+      )}
     </View>
   );
 }
@@ -769,6 +806,13 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 12,
   },
+  reviewIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   reviewTextWrap: {
     flex: 1,
     minWidth: 0,
@@ -1120,8 +1164,16 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     backgroundColor: '#E7F5F3',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     color: teal,

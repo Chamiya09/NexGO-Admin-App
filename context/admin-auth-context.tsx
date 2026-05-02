@@ -13,6 +13,7 @@ export type AdminProfile = {
   fullName: string;
   email: string;
   phoneNumber?: string;
+  profileImageUrl?: string;
   role?: string;
   scope?: string;
   office?: string;

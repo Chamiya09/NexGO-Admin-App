@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,10 +49,12 @@ type AdminRideReview = {
     fullName?: string;
     email?: string;
     phoneNumber?: string;
+    profileImageUrl?: string;
   } | null;
   driver?: {
     fullName?: string;
     phoneNumber?: string;
+    profileImageUrl?: string;
     vehicle?: {
       make?: string;
       model?: string;
@@ -324,7 +327,7 @@ export default function AdminReviewManagerScreen() {
             <View style={styles.popupHeader}>
               <View style={styles.popupHeaderMain}>
                 <View style={[styles.popupIcon, { backgroundColor: palette.accentSoft }]}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.accent} />
+                  <ProfileAvatar imageUrl={detailsReview.driver?.profileImageUrl} name={detailsReview.driver?.fullName} fallback="D" size={40} />
                 </View>
                 <View style={styles.popupTitleWrap}>
                   <Text style={[styles.popupTitle, { color: palette.textPrimary }]}>Review Details</Text>
@@ -378,6 +381,30 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
   );
 }
 
+function ProfileAvatar({
+  imageUrl,
+  name,
+  fallback,
+  size,
+}: {
+  imageUrl?: string;
+  name?: string;
+  fallback: string;
+  size: number;
+}) {
+  const initial = (name || fallback).trim().charAt(0).toUpperCase() || fallback;
+
+  return (
+    <View style={[styles.profileAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.profileAvatarImage} />
+      ) : (
+        <Text style={styles.profileAvatarText}>{initial}</Text>
+      )}
+    </View>
+  );
+}
+
 function ReviewRow({
   review,
   isUpdating,
@@ -408,9 +435,12 @@ function ReviewRow({
             </View>
           </View>
           <View style={styles.reviewTextWrap}>
-            <Text style={styles.reviewName} numberOfLines={1}>
-              {review.driver?.fullName || 'Driver not available'}
-            </Text>
+            <View style={styles.reviewIdentityLine}>
+              <ProfileAvatar imageUrl={review.driver?.profileImageUrl} name={review.driver?.fullName} fallback="D" size={28} />
+              <Text style={styles.reviewName} numberOfLines={1}>
+                {review.driver?.fullName || 'Driver not available'}
+              </Text>
+            </View>
             <Text style={styles.reviewSubtext} numberOfLines={1}>
               Passenger: {review.passenger?.fullName || 'Passenger not available'}
             </Text>
@@ -821,6 +851,30 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     paddingTop: 2,
+  },
+  reviewIdentityLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  profileAvatar: {
+    backgroundColor: '#E7F5F3',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileAvatarText: {
+    color: '#14988F',
+    fontSize: 12,
+    fontWeight: '900',
   },
   reviewName: {
     color: palette.textPrimary,

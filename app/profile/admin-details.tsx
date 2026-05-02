@@ -15,8 +15,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { useAdminAuth } from '@/context/admin-auth-context';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
@@ -36,6 +39,7 @@ const initialAdmin = {
   fullName: 'NexGO Operations Admin',
   email: 'admin@nexgo.lk',
   phoneNumber: '+94 77 123 4567',
+  profileImageUrl: '',
   role: 'Operations Supervisor',
   office: 'Colombo HQ',
   shift: 'Full operations coverage',
@@ -44,10 +48,12 @@ const initialAdmin = {
 type AdminProfile = typeof initialAdmin;
 
 export default function AdminDetailsScreen() {
+  const { refreshSession } = useAdminAuth();
   const [form, setForm] = useState(initialAdmin);
   const [savedAdmin, setSavedAdmin] = useState(initialAdmin);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -74,7 +80,7 @@ export default function AdminDetailsScreen() {
   };
 
   const closeEditModal = () => {
-    if (saving) {
+    if (saving || uploadingImage) {
       return;
     }
 
@@ -112,6 +118,7 @@ export default function AdminDetailsScreen() {
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         phoneNumber: form.phoneNumber.trim(),
+        profileImageUrl: form.profileImageUrl.trim(),
         role: form.role.trim(),
         office: form.office.trim(),
         shift: form.shift.trim(),
@@ -128,12 +135,72 @@ export default function AdminDetailsScreen() {
 
       setSavedAdmin(data.adminProfile);
       setForm(data.adminProfile);
+      await refreshSession();
       setIsEditModalVisible(false);
       setSuccessMessage('Admin details updated successfully.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update admin details.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const uploadAdminProfileImage = async (imageUri: string, fileName: string, mimeType: string) => {
+    const body = new FormData();
+
+    body.append('file', {
+      uri: imageUri,
+      name: fileName,
+      type: mimeType,
+    } as unknown as Blob);
+
+    const response = await authFetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      body,
+    });
+    const data = await parseApiResponse<{ fileUrl?: string; secureUrl?: string; url?: string }>(response);
+    const uploadedUrl = data.fileUrl || data.secureUrl || data.url;
+
+    if (!uploadedUrl) {
+      throw new Error('Image upload failed. No profile image URL returned.');
+    }
+
+    return uploadedUrl;
+  };
+
+  const pickAdminProfileImage = async () => {
+    setUploadingImage(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        throw new Error('Gallery permission is required to select a profile image.');
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const uploadedUrl = await uploadAdminProfileImage(
+        asset.uri,
+        asset.fileName || `admin-profile-${Date.now()}.jpg`,
+        asset.mimeType || 'image/jpeg'
+      );
+      handleChange('profileImageUrl', uploadedUrl);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to upload admin profile image.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -156,7 +223,11 @@ export default function AdminDetailsScreen() {
           <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <View style={styles.heroTopRow}>
               <View style={[styles.heroAvatar, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}>
-                <Text style={[styles.heroAvatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+                {savedAdmin.profileImageUrl ? (
+                  <Image source={{ uri: savedAdmin.profileImageUrl }} style={styles.avatarImage} contentFit="cover" />
+                ) : (
+                  <Text style={[styles.heroAvatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+                )}
               </View>
 
               <View style={styles.heroIdentity}>
@@ -263,6 +334,26 @@ export default function AdminDetailsScreen() {
                   </Pressable>
                 </View>
 
+                <View style={[styles.modalAvatar, { backgroundColor: palette.accentSoft, borderColor: palette.border }]}>
+                  {form.profileImageUrl ? (
+                    <Image source={{ uri: form.profileImageUrl }} style={styles.avatarImage} contentFit="cover" />
+                  ) : (
+                    <Text style={[styles.modalAvatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+                  )}
+                </View>
+
+                <Pressable
+                  style={[styles.imageSelectButton, { borderColor: palette.border, backgroundColor: palette.accentSoft }]}
+                  onPress={() => {
+                    void pickAdminProfileImage();
+                  }}
+                  disabled={saving || uploadingImage}>
+                  <Ionicons name="image-outline" size={17} color={palette.accent} />
+                  <Text style={[styles.imageSelectButtonText, { color: palette.accent }]}>
+                    {uploadingImage ? 'Uploading...' : form.profileImageUrl ? 'Change Profile Image' : 'Choose From Gallery'}
+                  </Text>
+                </Pressable>
+
                 <FormInput label="Full name" value={form.fullName} onChangeText={(value) => handleChange('fullName', value)} />
                 <FormInput
                   label="Email"
@@ -296,7 +387,7 @@ export default function AdminDetailsScreen() {
                       saving ? styles.buttonDisabled : null,
                     ]}
                     onPress={handleSave}
-                    disabled={saving}>
+                    disabled={saving || uploadingImage}>
                     <Text style={styles.primaryButtonText}>{saving ? 'Saving...' : 'Update Details'}</Text>
                   </Pressable>
                 </View>
@@ -412,6 +503,10 @@ const styles = StyleSheet.create({
   heroAvatarInitials: {
     fontSize: 18,
     fontWeight: '800',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   heroIdentity: {
     flex: 1,
@@ -598,6 +693,35 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  modalAvatarInitials: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  imageSelectButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  imageSelectButtonText: {
+    fontSize: 13,
+    fontWeight: '900',
   },
   inputGroup: {
     marginBottom: 10,
