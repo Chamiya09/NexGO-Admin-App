@@ -123,6 +123,8 @@ export default function AdminUsersScreen() {
   const [docModalVisible, setDocModalVisible] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<DriverUser | null>(null);
   const [docReviewing, setDocReviewing] = useState<string | null>(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [selectedProfileDriver, setSelectedProfileDriver] = useState<DriverUser | null>(null);
 
   const loadManagementData = useCallback(async () => {
     setLoading(true);
@@ -210,6 +212,51 @@ export default function AdminUsersScreen() {
       setDocReviewing(null);
     }
   }, [loadManagementData]);
+
+  const handleViewDriver = useCallback((driver: DriverUser) => {
+    setSelectedProfileDriver(driver);
+    setProfileModalVisible(true);
+  }, []);
+
+  const handleToggleSuspendDriver = useCallback((driver: DriverUser) => {
+    const isSuspended = normalizeDriverStatus(driver.status) === 'suspended';
+    const nextStatus = isSuspended ? 'active' : 'suspended';
+    const confirmTitle = isSuspended ? 'Reinstate driver' : 'Suspend driver';
+    const confirmMessage = isSuspended
+      ? 'This driver will be allowed to go online again.'
+      : 'This driver will be blocked from accepting new rides.';
+
+    Alert.alert(confirmTitle, confirmMessage, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: isSuspended ? 'Reinstate' : 'Suspend',
+        style: isSuspended ? 'default' : 'destructive',
+        onPress: async () => {
+          try {
+            setErrorMessage(null);
+            const res = await authFetch(`${API_BASE_URL}/driver-auth/drivers/${driver.id}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: nextStatus }),
+            });
+            const data = await parseApiResponse<{ driver: DriverUser }>(res);
+
+            setDriverUsers((current) =>
+              current.map((item) => (item.id === driver.id ? { ...item, status: data.driver.status } : item))
+            );
+            setSelectedDriver((current) =>
+              current && current.id === driver.id ? { ...current, status: data.driver.status } : current
+            );
+            setSelectedProfileDriver((current) =>
+              current && current.id === driver.id ? { ...current, status: data.driver.status } : current
+            );
+          } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : 'Unable to update driver status.');
+          }
+        },
+      },
+    ]);
+  }, []);
 
   const driverStats = useMemo(() => getDriverStats(driverUsers), [driverUsers]);
 
@@ -541,8 +588,17 @@ export default function AdminUsersScreen() {
                       label="Message"
                       onPress={() => handleDriverMessage(driver.phoneNumber)}
                     />
-                    <DriverActionButton icon="person-outline" label="View" />
-                    <DriverActionButton icon="ban-outline" label="Suspend" variant="danger" />
+                    <DriverActionButton
+                      icon="person-outline"
+                      label="View"
+                      onPress={() => handleViewDriver(driver)}
+                    />
+                    <DriverActionButton
+                      icon={normalizeDriverStatus(driver.status) === 'suspended' ? 'refresh-outline' : 'ban-outline'}
+                      label={normalizeDriverStatus(driver.status) === 'suspended' ? 'Unsuspend' : 'Suspend'}
+                      variant={normalizeDriverStatus(driver.status) === 'suspended' ? 'default' : 'danger'}
+                      onPress={() => handleToggleSuspendDriver(driver)}
+                    />
                   </View>
                 </View>
               ))}
@@ -650,6 +706,14 @@ export default function AdminUsersScreen() {
         }}
         onReview={handleReviewDocument}
         reviewingDoc={docReviewing}
+      />
+      <DriverProfileModal
+        visible={profileModalVisible}
+        driver={selectedProfileDriver}
+        onClose={() => {
+          setProfileModalVisible(false);
+          setSelectedProfileDriver(null);
+        }}
       />
     </SafeAreaView>
   );
@@ -1542,6 +1606,103 @@ function DriverDocsModal({
   );
 }
 
+function DriverProfileModal({
+  visible,
+  driver,
+  onClose,
+}: {
+  visible: boolean;
+  driver: DriverUser | null;
+  onClose: () => void;
+}) {
+  if (!driver) return null;
+
+  const documents = driver.documents ?? [];
+  const approvedDocs = documents.filter((doc) => doc.status === 'approved').length;
+  const pendingDocs = documents.filter((doc) => doc.status === 'review' || doc.status === 'pending').length;
+  const rejectedDocs = documents.filter((doc) => doc.status === 'rejected').length;
+  const statusTone = getDriverStatusTone(normalizeDriverStatus(driver.status));
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { maxWidth: 640 }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTextWrap}>
+              <Text style={styles.modalTitle}>Driver Profile</Text>
+              <Text style={styles.modalSubtitle}>Profile overview and account status</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.modalCloseButton}>
+              <Ionicons name="close" size={20} color="#102A28" />
+            </Pressable>
+          </View>
+
+          <View style={styles.modalDriverRow}>
+            <ProfileAvatar imageUrl={driver.profileImageUrl} name={driver.fullName} fallback="D" size={54} />
+            <View style={styles.modalDriverTextWrap}>
+              <Text style={styles.modalDriverName} numberOfLines={1}>{driver.fullName}</Text>
+              <Text style={styles.modalDriverMeta} numberOfLines={1}>
+                {driver.email} | {driver.phoneNumber || 'No phone'}
+              </Text>
+              <Text style={styles.modalDriverMeta} numberOfLines={1}>
+                {formatVehicle(driver.vehicle)}
+              </Text>
+            </View>
+            <View style={[styles.driverStatusPill, statusTone.pillStyle]}>
+              <Text style={[styles.driverStatusText, statusTone.textStyle]}>{statusTone.label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.modalMetaGrid}>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>Approved</Text>
+              <Text style={styles.modalMetaValue}>{approvedDocs}</Text>
+            </View>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>In Review</Text>
+              <Text style={styles.modalMetaValue}>{pendingDocs}</Text>
+            </View>
+            <View style={styles.modalMetaPill}>
+              <Text style={styles.modalMetaLabel}>Rejected</Text>
+              <Text style={styles.modalMetaValue}>{rejectedDocs}</Text>
+            </View>
+          </View>
+
+          <View style={styles.profileDocList}>
+            {documents.length > 0 ? (
+              documents.map((doc, idx) => {
+                const meta = docStatusMeta[doc.status] || docStatusMeta['missing'];
+                const info = docInfoMeta[doc.documentType] || {
+                  title: doc.documentType.toUpperCase(),
+                  subtitle: '',
+                  icon: 'document-text-outline',
+                };
+                return (
+                  <View key={`${doc.documentType}-${idx}`} style={styles.profileDocRow}>
+                    <View style={styles.docIconWrap}>
+                      <Ionicons name={info.icon} size={18} color={teal} />
+                    </View>
+                    <View style={styles.profileDocTextWrap}>
+                      <Text style={styles.profileDocTitle}>{info.title}</Text>
+                      <Text style={styles.profileDocSubtitle}>{info.subtitle}</Text>
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: meta.backgroundColor }]}>
+                      <Ionicons name={meta.icon} size={12} color={meta.color} />
+                      <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.noDocsMessage}>No documents uploaded by this driver yet.</Text>
+            )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function handleDriverCall(phoneNumber?: string) {
   if (!phoneNumber) {
     return;
@@ -1673,9 +1834,14 @@ const styles = StyleSheet.create({
   },
   docActionGroupRow: {
     flexDirection: 'row',
+    flexWrap: 'nowrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    flexShrink: 0,
     gap: 8,
   },
   actionBtnView: {
+    minWidth: 86,
     minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
@@ -1688,6 +1854,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   actionBtnApprove: {
+    minWidth: 86,
     minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
@@ -1700,6 +1867,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   actionBtnReject: {
+    minWidth: 86,
     minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
@@ -1937,6 +2105,35 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     marginTop: 20,
+  },
+  profileDocList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  profileDocRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5F0EE',
+    backgroundColor: '#F7FBFA',
+    padding: 10,
+  },
+  profileDocTextWrap: {
+    flex: 1,
+  },
+  profileDocTitle: {
+    color: '#102A28',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  profileDocSubtitle: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '600',
   },
   safeArea: {
     flex: 1,
