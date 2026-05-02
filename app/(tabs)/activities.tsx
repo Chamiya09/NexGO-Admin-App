@@ -55,6 +55,8 @@ type AdminTrip = {
   };
   vehicleType: string;
   price: number;
+  adminCommissionAmount?: number;
+  adminCommissionRate?: number;
   status: RideStatus;
   canonicalStatus?: string;
   requestedAt: string;
@@ -250,6 +252,12 @@ export default function AdminActivitiesScreen() {
                   <View style={styles.referencePill}>
                     <Ionicons name="cash-outline" size={13} color="#617C79" />
                     <Text style={styles.referenceText}>{formatMoney(trip.price)}</Text>
+                  </View>
+                  <View style={styles.referencePill}>
+                    <Ionicons name="pie-chart-outline" size={13} color="#617C79" />
+                    <Text style={styles.referenceText}>
+                      Admin {Math.round((trip.adminCommissionRate ?? 0.05) * 100)}%: {formatMoney(trip.adminCommissionAmount ?? 0)}
+                    </Text>
                   </View>
                   {trip.driver?.vehicle?.plateNumber ? (
                     <View style={styles.referencePill}>

@@ -6,6 +6,7 @@ import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 type AdminAnalytics = {
   totalRevenue: number;
+  totalCommission?: number;
   activeRides: number;
   cancelledRides: number;
   waitTimeAvg: string | number;
@@ -61,6 +62,13 @@ export function AdminAnalyticsOverview() {
       percent: 'Today', 
       isPositive: true,
       icon: 'wallet-outline' as const
+    },
+    { 
+      title: 'Admin Commission', 
+      amount: `Rs. ${(data?.totalCommission ?? 0).toLocaleString()}`, 
+      percent: 'Today', 
+      isPositive: true,
+      icon: 'cash-outline' as const
     },
     { 
       title: 'Current Active Rides', 
