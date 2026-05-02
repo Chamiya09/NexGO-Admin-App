@@ -53,6 +53,7 @@ export default function TabLayout() {
         name="users"
         options={{
           href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen

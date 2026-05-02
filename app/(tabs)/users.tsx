@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image as RNImage,
   Linking,
   Modal,
   Platform,
@@ -18,6 +17,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
@@ -33,14 +33,14 @@ type PassengerUser = {
   createdAt?: string;
 };
 
-type DriverDocument = {
-  documentType: 'license' | 'insurance' | 'registration';
-  fileUrl?: string;
-  status: 'missing' | 'review' | 'approved' | 'rejected';
-  submittedAt?: string | null;
-  reviewedAt?: string | null;
-  rejectionReason?: string;
-};
+type PassengerFilter = 'all' | 'with-photo' | 'no-photo' | 'with-phone';
+
+const passengerFilters: Array<{ label: string; value: PassengerFilter }> = [
+  { label: 'All', value: 'all' },
+  { label: 'With Photo', value: 'with-photo' },
+  { label: 'No Photo', value: 'no-photo' },
+  { label: 'With Phone', value: 'with-phone' },
+];
 
 type DriverUser = {
   id: string;
@@ -55,7 +55,6 @@ type DriverUser = {
     model?: string;
     plateNumber?: string;
   } | null;
-  documents?: DriverDocument[];
 };
 
 type AdminUser = {
@@ -68,11 +67,6 @@ type AdminUser = {
   scope?: string;
   office?: string;
   shift?: string;
-};
-
-type SelectedDriverDocument = {
-  driver: DriverUser;
-  document: DriverDocument;
 };
 
 type NewAdminForm = {
@@ -111,7 +105,9 @@ export default function AdminUsersScreen() {
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedDocument, setSelectedDocument] = useState<SelectedDriverDocument | null>(null);
+  const [passengerFilter, setPassengerFilter] = useState<PassengerFilter>('all');
+  const [driverSearch, setDriverSearch] = useState('');
+  const [driverStatusFilter, setDriverStatusFilter] = useState<DriverStatusFilter>('all');
 
   const loadManagementData = useCallback(async () => {
     setLoading(true);
@@ -144,23 +140,59 @@ export default function AdminUsersScreen() {
     void loadManagementData();
   }, [loadManagementData]);
 
-  const pendingDriverUsers = useMemo(
-    () =>
-      driverUsers.filter(
-        (driver) =>
-          driver.status !== 'active' ||
-          (driver.documents || []).some((document) => document.status !== 'approved')
-      ),
-    [driverUsers]
-  );
+  const driverStats = useMemo(() => getDriverStats(driverUsers), [driverUsers]);
 
-  const closeDocumentModal = () => {
-    setSelectedDocument(null);
-  };
+  const passengerStats = useMemo(() => {
+    const total = passengerUsers.length;
+    const withPhoto = passengerUsers.filter((user) => Boolean(user.profileImageUrl)).length;
+    const withPhone = passengerUsers.filter((user) => Boolean(user.phoneNumber)).length;
+    const noPhoto = total - withPhoto;
 
-  const openDocumentModal = (driver: DriverUser, document: DriverDocument) => {
-    setSelectedDocument({ driver, document });
-  };
+    return { total, withPhoto, withPhone, noPhoto };
+  }, [passengerUsers]);
+
+  const filteredPassengers = useMemo(() => {
+    if (passengerFilter === 'with-photo') {
+      return passengerUsers.filter((user) => Boolean(user.profileImageUrl));
+    }
+
+    if (passengerFilter === 'no-photo') {
+      return passengerUsers.filter((user) => !user.profileImageUrl);
+    }
+
+    if (passengerFilter === 'with-phone') {
+      return passengerUsers.filter((user) => Boolean(user.phoneNumber));
+    }
+
+    return passengerUsers;
+  }, [passengerUsers, passengerFilter]);
+
+  const filteredDrivers = useMemo(() => {
+    const normalizedSearch = driverSearch.trim().toLowerCase();
+
+    return driverUsers.filter((driver) => {
+      const normalizedStatus = normalizeDriverStatus(driver.status);
+
+      if (driverStatusFilter !== 'all' && normalizedStatus !== driverStatusFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        driver.fullName,
+        driver.email,
+        driver.phoneNumber,
+        driver.vehicle?.plateNumber,
+        driver.vehicle?.make,
+        driver.vehicle?.model,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalizedSearch));
+    });
+  }, [driverUsers, driverSearch, driverStatusFilter]);
 
   const openCreateAdminModal = () => {
     setAdminFormError(null);
@@ -212,10 +244,36 @@ export default function AdminUsersScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         onRefreshPage={loadManagementData}>
-        <Text style={styles.pageTitle}>User & Driver Management</Text>
-        <Text style={styles.pageSubtitle}>
-          Review rider activity, manage account trust, and process driver approval queues from one place.
-        </Text>
+        <View style={styles.topBar}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={20} color="#102A28" />
+          </Pressable>
+          <Text style={styles.topBarTitle}>Users</Text>
+          <View style={styles.topBarSpacer} />
+        </View>
+
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroIcon}>
+              <Ionicons name="people-outline" size={24} color={teal} />
+            </View>
+            <View style={styles.heroIdentity}>
+              <Text style={styles.heroName}>User & Driver Management</Text>
+              <Text style={styles.heroSubline}>
+                Review rider activity, manage account trust, and coordinate driver operations in one workspace.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.heroBadge}>
+            <Ionicons name="shield-checkmark-outline" size={14} color={teal} />
+            <Text style={styles.heroBadgeText}>Operations control</Text>
+          </View>
+
+          <Text style={styles.heroHint}>
+            Switch between admins, passengers, and drivers to keep profiles verified and supported.
+          </Text>
+        </View>
 
         <View style={styles.tabRow}>
           <Pressable
@@ -299,112 +357,187 @@ export default function AdminUsersScreen() {
             <View style={[styles.panelCard, isWide ? styles.mainPanel : null]}>
               <View style={styles.panelHeader}>
                 <View>
-                  <Text style={styles.panelEyebrow}>PENDING APPROVALS</Text>
-                  <Text style={styles.panelTitle}>Driver review queue</Text>
+                  <Text style={styles.panelEyebrow}>DRIVER MANAGEMENT</Text>
+                  <Text style={styles.panelTitle}>Fleet overview & action center</Text>
                 </View>
                 <View style={styles.panelBadge}>
-                  <Text style={styles.panelBadgeText}>{pendingDriverUsers.length} waiting</Text>
+                  <Text style={styles.panelBadgeText}>{driverStats.total} drivers</Text>
                 </View>
               </View>
 
-              {pendingDriverUsers.length === 0 ? (
-                <EmptyStateCard
-                  icon="checkmark-circle-outline"
-                  text="No driver documents are waiting for review right now."
-                />
+              <View style={styles.driverStatsRow}>
+                <DriverStatCard label="Active" value={driverStats.active} accent="#0F766E" />
+                <DriverStatCard label="Pending" value={driverStats.pending} accent="#A16207" />
+                <DriverStatCard label="Suspended" value={driverStats.suspended} accent="#C13B3B" />
+                <DriverStatCard label="Inactive" value={driverStats.inactive} accent="#64748B" />
+              </View>
+
+              <View style={styles.driverControlsRow}>
+                <View style={styles.driverSearchWrap}>
+                  <Ionicons name="search-outline" size={16} color="#7A908D" />
+                  <TextInput
+                    style={styles.driverSearchInput}
+                    placeholder="Search by name, email, phone, plate"
+                    placeholderTextColor="#8AA19E"
+                    value={driverSearch}
+                    onChangeText={setDriverSearch}
+                  />
+                </View>
+                <View style={styles.driverFilterRow}>
+                  {driverStatusFilters.map((filter) => (
+                    <Pressable
+                      key={filter.value}
+                      style={[
+                        styles.driverFilterChip,
+                        driverStatusFilter === filter.value ? styles.driverFilterChipActive : null,
+                      ]}
+                      onPress={() => setDriverStatusFilter(filter.value)}>
+                      <Text
+                        style={[
+                          styles.driverFilterText,
+                          driverStatusFilter === filter.value ? styles.driverFilterTextActive : null,
+                        ]}>
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {filteredDrivers.length === 0 ? (
+                <EmptyStateCard icon="car-outline" text="No drivers match the current filters." />
               ) : null}
 
-              {pendingDriverUsers.map((driver) => (
-                <View key={driver.id} style={styles.reviewCard}>
-                  <View style={styles.reviewTopRow}>
-                    <View style={styles.reviewIdentity}>
+              {filteredDrivers.map((driver) => (
+                <View key={driver.id} style={styles.driverCard}>
+                  <View style={styles.driverCardHeader}>
+                    <View style={styles.driverIdentity}>
                       <ProfileAvatar
                         imageUrl={driver.profileImageUrl}
                         name={driver.fullName}
                         fallback="D"
-                        size={44}
+                        size={46}
                       />
-                      <View style={styles.reviewTextWrap}>
-                        <Text style={styles.reviewName}>{driver.fullName}</Text>
-                        <Text style={styles.reviewMeta}>
-                          {formatVehicle(driver.vehicle)} | {driver.vehicle?.plateNumber || 'No plate'}
+                      <View style={styles.driverTextWrap}>
+                        <Text style={styles.driverName}>{driver.fullName}</Text>
+                        <Text style={styles.driverMeta} numberOfLines={1}>
+                          {driver.email} | {driver.phoneNumber || 'No phone'}
                         </Text>
-                        <Text style={styles.reviewDetailLine}>
-                          {formatDriverStatus(driver.status)} | {(driver.documents || []).filter((document) => document.status === 'approved').length}/
-                          {(driver.documents || []).length || 3} documents approved
+                        <Text style={styles.driverDetailLine} numberOfLines={1}>
+                          {formatVehicle(driver.vehicle)} | {driver.vehicle?.plateNumber || 'No plate'}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.reviewStatusPill}>
-                      <Text style={styles.reviewStatusText}>{getDriverActionLabel(driver)}</Text>
-                    </View>
+                    <DriverStatusPill status={normalizeDriverStatus(driver.status)} />
                   </View>
 
-                  <View style={styles.documentRow}>
-                    {(driver.documents || []).map((document) => (
-                      <Pressable
-                        key={`${driver.id}-${document.documentType}`}
-                        style={styles.documentCard}
-                        onPress={() => openDocumentModal(driver, document)}>
-                        <Ionicons name="document-attach-outline" size={18} color={teal} />
-                        <View style={styles.documentMetaWrap}>
-                          <Text style={styles.documentText}>{formatDocumentType(document.documentType)}</Text>
-                          <Text style={styles.documentStatusText}>{formatDocumentStatus(document)}</Text>
-                        </View>
-                        <Text style={styles.documentLink}>View</Text>
-                      </Pressable>
-                    ))}
+                  <View style={styles.driverMetaRow}>
+                    <DriverMetaItem icon="finger-print-outline" label="Driver ID" value={formatDriverId(driver.id)} />
+                    <DriverMetaItem icon="car-outline" label="Vehicle" value={formatVehicle(driver.vehicle)} />
+                    <DriverMetaItem
+                      icon="pulse-outline"
+                      label="Status"
+                      value={formatDriverStatusLabel(driver.status)}
+                    />
                   </View>
 
-                  <View style={styles.actionRow}>
-                    <Pressable style={styles.rejectButton}>
-                      <Text style={styles.rejectButtonText}>Reject</Text>
-                    </Pressable>
-                    <Pressable style={styles.approveButton}>
-                      <Text style={styles.approveButtonText}>Approve</Text>
-                    </Pressable>
+                  <View style={styles.driverActionRow}>
+                    <DriverActionButton
+                      icon="call-outline"
+                      label="Call"
+                      onPress={() => handleDriverCall(driver.phoneNumber)}
+                    />
+                    <DriverActionButton
+                      icon="chatbubble-outline"
+                      label="Message"
+                      onPress={() => handleDriverMessage(driver.phoneNumber)}
+                    />
+                    <DriverActionButton icon="person-outline" label="View" />
+                    <DriverActionButton icon="ban-outline" label="Suspend" variant="danger" />
                   </View>
                 </View>
               ))}
             </View>
 
             <View style={[styles.panelCard, isWide ? styles.sidePanel : null]}>
-              <Text style={styles.panelEyebrow}>CHECKLIST</Text>
-              <Text style={styles.panelTitle}>Approval policy</Text>
+              <Text style={styles.panelEyebrow}>ACTIONS</Text>
+              <Text style={styles.panelTitle}>Driver support playbook</Text>
               <View style={styles.policyList}>
-                <PolicyRow text="Confirm license upload is readable and matches the driver profile." />
-                <PolicyRow text="Check insurance upload validity before approval." />
-                <PolicyRow text="Reject incomplete document submissions with a note to resubmit." />
+                <PolicyRow text="Reach out before suspensions to confirm driver context." />
+                <PolicyRow text="Use the call or message shortcut for urgent route issues." />
+                <PolicyRow text="Record status changes in the driver notes log." />
               </View>
             </View>
           </View>
         ) : (
-          <View style={styles.panelCard}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>PASSENGER ACCOUNTS</Text>
-                  <Text style={styles.panelTitle}>Active and flagged users</Text>
+          <View style={styles.panelCard}
+            >
+            <View style={styles.heroCard}>
+              <View style={styles.heroTopRow}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="people-outline" size={24} color={teal} />
                 </View>
-                <View style={styles.panelBadge}>
-                  <Text style={styles.panelBadgeText}>{passengerUsers.length} visible</Text>
+                <View style={styles.heroIdentity}>
+                  <Text style={styles.heroName}>User Management</Text>
+                  <Text style={styles.heroSubline}>
+                    Track passenger accounts, verify profiles, and flag suspicious activity quickly.
+                  </Text>
                 </View>
               </View>
 
-            {passengerUsers.length === 0 ? (
-              <EmptyStateCard icon="people-outline" text="No passenger accounts were returned by the backend." />
+              <View style={styles.heroBadge}>
+                <Ionicons name="shield-checkmark-outline" size={14} color={teal} />
+                <Text style={styles.heroBadgeText}>Account oversight</Text>
+              </View>
+
+              <Text style={styles.heroHint}>
+                Focus on passenger trust, profile completeness, and outreach readiness.
+              </Text>
+            </View>
+
+            <View style={styles.metricGrid}>
+              <MetricCard label="Total" value={String(passengerStats.total)} icon="list-outline" />
+              <MetricCard label="With Photo" value={String(passengerStats.withPhoto)} icon="image-outline" />
+              <MetricCard label="With Phone" value={String(passengerStats.withPhone)} icon="call-outline" />
+            </View>
+
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>USER FILTER</Text>
+              <Text style={styles.sectionHint}>Manage user segments</Text>
+            </View>
+
+            <View style={styles.filterCard}>
+              <View style={styles.filterRow}>
+                {passengerFilters.map((filter) => {
+                  const selected = passengerFilter === filter.value;
+
+                  return (
+                    <Pressable
+                      key={filter.value}
+                      style={[styles.filterButton, selected ? styles.filterButtonActive : null]}
+                      onPress={() => setPassengerFilter(filter.value)}>
+                      <Text style={[styles.filterText, selected ? styles.filterTextActive : null]}>
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>PASSENGERS</Text>
+
+            {filteredPassengers.length === 0 ? (
+              <EmptyStateCard icon="people-outline" text="No passenger accounts match the selected filter." />
             ) : null}
 
-            {passengerUsers.map((user) => (
+            {filteredPassengers.map((user) => (
               <PassengerAccountCard key={user.id} user={user} />
             ))}
           </View>
         )}
       </RefreshableScrollView>
 
-      <DocumentPreviewModal
-        selectedDocument={selectedDocument}
-        onClose={closeDocumentModal}
-      />
       <CreateAdminModal
         visible={createAdminModalVisible}
         form={newAdminForm}
@@ -432,6 +565,16 @@ function EmptyStateCard({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
     <View style={styles.emptyStateCard}>
       <Ionicons name={icon} size={18} color={teal} />
       <Text style={styles.emptyStateText}>{text}</Text>
+    </View>
+  );
+}
+
+function MetricCard({ label, value, icon }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap }) {
+  return (
+    <View style={styles.metricCard}>
+      <Ionicons name={icon} size={17} color={teal} />
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
 }
@@ -652,154 +795,73 @@ function ProfileAvatar({
   );
 }
 
-function DocumentPreviewModal({
-  selectedDocument,
-  onClose,
-}: {
-  selectedDocument: SelectedDriverDocument | null;
-  onClose: () => void;
-}) {
-  const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const driver = selectedDocument?.driver;
-  const document = selectedDocument?.document;
-  const imagePreviewable = isImageDocument(document?.fileUrl);
-  const pdfPreviewable = isPdfDocument(document?.fileUrl);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const loadPdfPages = async () => {
-      if (!document?.fileUrl || !pdfPreviewable) {
-        setPdfPageUrls([]);
-        setPdfLoading(false);
-        return;
-      }
-
-      setPdfLoading(true);
-      const pageUrls = await discoverCloudinaryPdfPages(document.fileUrl);
-
-      if (!isCancelled) {
-        setPdfPageUrls(pageUrls);
-        setPdfLoading(false);
-      }
-    };
-
-    loadPdfPages();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [document?.fileUrl, pdfPreviewable]);
-
-  if (!selectedDocument || !driver || !document) {
-    return null;
-  }
-
+function DriverStatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderTextWrap}>
-              <Text style={styles.modalTitle}>{formatDocumentType(document.documentType)}</Text>
-              <Text style={styles.modalSubtitle}>{driver.fullName} | {formatDriverId(driver.id)}</Text>
-            </View>
-            <Pressable style={styles.modalCloseButton} onPress={onClose}>
-              <Ionicons name="close" size={20} color="#102A28" />
-            </Pressable>
-          </View>
-
-          <View style={styles.modalMetaGrid}>
-            <ModalMetaPill label="Status" value={formatDriverStatus(document.status)} />
-            <ModalMetaPill
-              label="Submitted"
-              value={document.submittedAt ? new Date(document.submittedAt).toLocaleDateString() : 'Not submitted'}
-            />
-          </View>
-
-          <View style={styles.previewCard}>
-            {document.fileUrl ? (
-              imagePreviewable ? (
-                <Image source={{ uri: document.fileUrl }} style={styles.previewImage} contentFit="contain" />
-              ) : pdfPreviewable ? (
-                pdfLoading ? (
-                  <View style={styles.previewEmptyState}>
-                    <ActivityIndicator size="small" color={teal} />
-                    <Text style={styles.previewEmptyTitle}>Loading PDF pages</Text>
-                    <Text style={styles.previewEmptyText}>Preparing a scrollable preview from Cloudinary.</Text>
-                  </View>
-                ) : pdfPageUrls.length > 0 ? (
-                  <ScrollView
-                    style={styles.pdfPreviewScroll}
-                    contentContainerStyle={styles.pdfPreviewScrollContent}
-                    showsVerticalScrollIndicator>
-                    {pdfPageUrls.map((pageUrl, index) => (
-                      <View key={pageUrl} style={styles.pdfPageCard}>
-                        <Text style={styles.pdfPageLabel}>Page {index + 1}</Text>
-                        <Image source={{ uri: pageUrl }} style={styles.pdfPageImage} contentFit="contain" />
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={styles.previewEmptyState}>
-                    <Ionicons name="document-text-outline" size={34} color={teal} />
-                    <Text style={styles.previewEmptyTitle}>Preview not available</Text>
-                    <Text style={styles.previewEmptyText}>
-                      This Cloudinary PDF could not be converted into scrollable page previews.
-                    </Text>
-                  </View>
-                )
-              ) : (
-                <View style={styles.previewEmptyState}>
-                  <Ionicons name="document-text-outline" size={34} color={teal} />
-                  <Text style={styles.previewEmptyTitle}>Preview not available</Text>
-                  <Text style={styles.previewEmptyText}>This file type can be opened with the external viewer.</Text>
-                </View>
-              )
-            ) : (
-              <View style={styles.previewEmptyState}>
-                <Ionicons name="cloud-offline-outline" size={34} color="#C13B3B" />
-                <Text style={styles.previewEmptyTitle}>Document missing</Text>
-                <Text style={styles.previewEmptyText}>No uploaded file URL is available for this document yet.</Text>
-              </View>
-            )}
-          </View>
-
-          {document.rejectionReason ? (
-            <View style={styles.reasonCard}>
-              <Text style={styles.reasonLabel}>Review note</Text>
-              <Text style={styles.reasonText}>{document.rejectionReason}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.modalActionRow}>
-            <Pressable style={styles.modalSecondaryButton} onPress={onClose}>
-              <Text style={styles.modalSecondaryButtonText}>Close</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modalPrimaryButton, !document.fileUrl ? styles.modalButtonDisabled : null]}
-              onPress={() => {
-                if (document.fileUrl) {
-                  Linking.openURL(document.fileUrl);
-                }
-              }}
-              disabled={!document.fileUrl}>
-              <Text style={styles.modalPrimaryButtonText}>Open File</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <View style={styles.driverStatCard}>
+      <Text style={styles.driverStatLabel}>{label}</Text>
+      <Text style={[styles.driverStatValue, { color: accent }]}>{value}</Text>
+    </View>
   );
 }
 
-function ModalMetaPill({ label, value }: { label: string; value: string }) {
+function DriverStatusPill({ status }: { status: NormalizedDriverStatus }) {
+  const { pillStyle, textStyle, label } = getDriverStatusTone(status);
+
   return (
-    <View style={styles.modalMetaPill}>
-      <Text style={styles.modalMetaLabel}>{label}</Text>
-      <Text style={styles.modalMetaValue}>{value}</Text>
+    <View style={[styles.driverStatusPill, pillStyle]}>
+      <Text style={[styles.driverStatusText, textStyle]}>{label}</Text>
     </View>
+  );
+}
+
+function DriverMetaItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.driverMetaItem}>
+      <Ionicons name={icon} size={16} color={teal} />
+      <View style={styles.driverMetaTextWrap}>
+        <Text style={styles.driverMetaLabel}>{label}</Text>
+        <Text style={styles.driverMetaValue} numberOfLines={1}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function DriverActionButton({
+  icon,
+  label,
+  onPress,
+  variant = 'default',
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress?: () => void;
+  variant?: 'default' | 'danger';
+}) {
+  return (
+    <Pressable
+      style={[styles.driverActionButton, variant === 'danger' ? styles.driverActionButtonDanger : null]}
+      onPress={onPress}>
+      <Ionicons
+        name={icon}
+        size={16}
+        color={variant === 'danger' ? '#C13B3B' : '#102A28'}
+      />
+      <Text
+        style={[
+          styles.driverActionText,
+          variant === 'danger' ? styles.driverActionTextDanger : null,
+        ]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -809,14 +871,6 @@ function formatVehicle(vehicle: DriverUser['vehicle']) {
   }
 
   return [vehicle.category, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.plateNumber || 'Vehicle added';
-}
-
-function formatDriverStatus(status?: string) {
-  if (!status) {
-    return 'Pending';
-  }
-
-  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 function formatDriverId(id: string) {
@@ -835,154 +889,116 @@ function formatShortId(id: string) {
   return id.length > 12 ? `${id.slice(0, 12)}...` : id;
 }
 
-function isImageDocument(fileUrl?: string) {
-  if (!fileUrl) {
-    return false;
+type NormalizedDriverStatus = 'active' | 'pending' | 'suspended' | 'inactive';
+type DriverStatusFilter = NormalizedDriverStatus | 'all';
+
+const driverStatusFilters: Array<{ label: string; value: DriverStatusFilter }> = [
+  { label: 'All', value: 'all' },
+  { label: 'Active', value: 'active' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Suspended', value: 'suspended' },
+  { label: 'Inactive', value: 'inactive' },
+];
+
+function normalizeDriverStatus(status?: string): NormalizedDriverStatus {
+  if (!status) {
+    return 'pending';
   }
 
-  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileUrl);
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes('active')) {
+    return 'active';
+  }
+
+  if (normalized.includes('suspend') || normalized.includes('block')) {
+    return 'suspended';
+  }
+
+  if (normalized.includes('inactive') || normalized.includes('offline')) {
+    return 'inactive';
+  }
+
+  if (normalized.includes('pending') || normalized.includes('review')) {
+    return 'pending';
+  }
+
+  return 'pending';
 }
 
-function isPdfDocument(fileUrl?: string) {
-  if (!fileUrl) {
-    return false;
+function formatDriverStatusLabel(status?: string) {
+  const normalized = normalizeDriverStatus(status);
+
+  if (normalized === 'active') {
+    return 'Active';
   }
 
-  return /\.pdf($|\?)/i.test(fileUrl);
+  if (normalized === 'suspended') {
+    return 'Suspended';
+  }
+
+  if (normalized === 'inactive') {
+    return 'Inactive';
+  }
+
+  return 'Pending';
 }
 
-function getCloudinaryPdfParts(fileUrl?: string) {
-  if (!fileUrl) {
-    return null;
-  }
+function getDriverStats(drivers: DriverUser[]) {
+  return drivers.reduce(
+    (acc, driver) => {
+      const status = normalizeDriverStatus(driver.status);
+      acc.total += 1;
+      acc[status] += 1;
+      return acc;
+    },
+    { total: 0, active: 0, pending: 0, suspended: 0, inactive: 0 }
+  );
+}
 
-  try {
-    const parsedUrl = new URL(fileUrl);
-    if (!parsedUrl.hostname.includes('res.cloudinary.com')) {
-      return null;
-    }
-
-    const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
-    const uploadIndex = pathSegments.indexOf('upload');
-
-    if (uploadIndex < 2) {
-      return null;
-    }
-
-    const cloudName = pathSegments[0];
-    const resourceType = pathSegments[1];
-    const versionIndex = pathSegments.findIndex((segment, index) => index > uploadIndex && /^v\d+$/.test(segment));
-
-    if (!cloudName || versionIndex === -1 || versionIndex === pathSegments.length - 1) {
-      return null;
-    }
-
-    const version = pathSegments[versionIndex];
-    const publicIdWithExtension = pathSegments.slice(versionIndex + 1).join('/');
-
-    if (!/\.pdf$/i.test(publicIdWithExtension)) {
-      return null;
-    }
-
-    return {
-      cloudName,
-      resourceType,
-      version,
-      publicId: publicIdWithExtension.replace(/\.pdf$/i, ''),
-      publicIdWithExtension,
-    };
-  } catch {
-    return null;
+function getDriverStatusTone(status: NormalizedDriverStatus) {
+  switch (status) {
+    case 'active':
+      return {
+        label: 'Active',
+        pillStyle: styles.driverStatusPillActive,
+        textStyle: styles.driverStatusTextActive,
+      };
+    case 'suspended':
+      return {
+        label: 'Suspended',
+        pillStyle: styles.driverStatusPillSuspended,
+        textStyle: styles.driverStatusTextSuspended,
+      };
+    case 'inactive':
+      return {
+        label: 'Inactive',
+        pillStyle: styles.driverStatusPillInactive,
+        textStyle: styles.driverStatusTextInactive,
+      };
+    default:
+      return {
+        label: 'Pending',
+        pillStyle: styles.driverStatusPillPending,
+        textStyle: styles.driverStatusTextPending,
+      };
   }
 }
 
-function getCloudinaryPdfPagePreviewUrl(fileUrl: string, pageNumber: number) {
-  const parts = getCloudinaryPdfParts(fileUrl);
-  if (!parts) {
-    return null;
+function handleDriverCall(phoneNumber?: string) {
+  if (!phoneNumber) {
+    return;
   }
 
-  const normalizedPublicId =
-    parts.resourceType === 'raw'
-      ? parts.publicIdWithExtension
-      : parts.publicId;
-
-  return `https://res.cloudinary.com/${parts.cloudName}/image/upload/pg_${pageNumber},f_jpg,q_auto,w_1200/${parts.version}/${normalizedPublicId}.jpg`;
+  Linking.openURL(`tel:${phoneNumber}`);
 }
 
-function getRemoteImageSize(uri: string) {
-  return new Promise<{ width: number; height: number }>((resolve, reject) => {
-    RNImage.getSize(
-      uri,
-      (width, height) => resolve({ width, height }),
-      reject
-    );
-  });
-}
-
-async function discoverCloudinaryPdfPages(fileUrl: string, maxPages = 12) {
-  const pageUrls: string[] = [];
-
-  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
-    const previewUrl = getCloudinaryPdfPagePreviewUrl(fileUrl, pageNumber);
-
-    if (!previewUrl) {
-      break;
-    }
-
-    try {
-      await getRemoteImageSize(previewUrl);
-      pageUrls.push(previewUrl);
-    } catch {
-      break;
-    }
+function handleDriverMessage(phoneNumber?: string) {
+  if (!phoneNumber) {
+    return;
   }
 
-  return pageUrls;
-}
-
-function formatDocumentType(documentType: DriverDocument['documentType']) {
-  if (documentType === 'license') {
-    return 'License';
-  }
-
-  if (documentType === 'insurance') {
-    return 'Insurance';
-  }
-
-  return 'Registration';
-}
-
-function formatDocumentStatus(document: DriverDocument) {
-  if (document.status === 'approved') {
-    return document.reviewedAt ? `Approved ${new Date(document.reviewedAt).toLocaleDateString()}` : 'Approved';
-  }
-
-  if (document.status === 'rejected') {
-    return document.rejectionReason ? `Rejected: ${document.rejectionReason}` : 'Rejected';
-  }
-
-  if (document.status === 'review') {
-    return document.submittedAt ? `In review since ${new Date(document.submittedAt).toLocaleDateString()}` : 'In review';
-  }
-
-  return 'Missing upload';
-}
-
-function getDriverActionLabel(driver: DriverUser) {
-  const documents = driver.documents || [];
-  const missingCount = documents.filter((document) => document.status === 'missing').length;
-  const rejectedCount = documents.filter((document) => document.status === 'rejected').length;
-
-  if (rejectedCount > 0) {
-    return `${rejectedCount} rejected`;
-  }
-
-  if (missingCount > 0) {
-    return `${missingCount} missing`;
-  }
-
-  return 'Needs action';
+  Linking.openURL(`sms:${phoneNumber}`);
 }
 
 const styles = StyleSheet.create({
@@ -995,6 +1011,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 28,
+  },
+  topBar: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    color: '#102A28',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  topBarSpacer: {
+    width: 38,
+    height: 38,
   },
   pageTitle: {
     color: '#102A28',
@@ -1118,6 +1160,370 @@ const styles = StyleSheet.create({
     color: teal,
     fontSize: 11,
     fontWeight: '800',
+  },
+  heroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  heroIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroIdentity: {
+    flex: 1,
+  },
+  heroName: {
+    color: '#102A28',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  heroSubline: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: '#E7F5F3',
+    marginBottom: 8,
+  },
+  heroBadgeText: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroHint: {
+    color: '#617C79',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  metricCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  metricValue: {
+    color: '#102A28',
+    fontSize: 17,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  metricLabel: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  sectionHeaderRow: {
+    minHeight: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 6,
+  },
+  sectionTitle: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  sectionHint: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    marginBottom: 12,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  filterButton: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    minWidth: 126,
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: teal,
+    borderColor: teal,
+  },
+  filterText: {
+    color: '#102A28',
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  driverStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  driverStatCard: {
+    flexGrow: 1,
+    flexBasis: 150,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 12,
+    gap: 6,
+  },
+  driverStatLabel: {
+    color: '#7A908D',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  driverStatValue: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  driverControlsRow: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  driverSearchWrap: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  driverSearchInput: {
+    flex: 1,
+    color: '#102A28',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  driverFilterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  driverFilterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  driverFilterChipActive: {
+    backgroundColor: '#E7F5F3',
+    borderColor: '#C9E4E0',
+  },
+  driverFilterText: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  driverFilterTextActive: {
+    color: teal,
+  },
+  driverCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 14,
+    marginBottom: 12,
+    gap: 12,
+  },
+  driverCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  driverIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  driverTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverName: {
+    color: '#102A28',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  driverMeta: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  driverDetailLine: {
+    color: '#7A908D',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  driverStatusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  driverStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  driverStatusPillActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  driverStatusTextActive: {
+    color: '#166534',
+  },
+  driverStatusPillPending: {
+    backgroundColor: '#FFF1DA',
+  },
+  driverStatusTextPending: {
+    color: '#A16207',
+  },
+  driverStatusPillSuspended: {
+    backgroundColor: '#FEE2E2',
+  },
+  driverStatusTextSuspended: {
+    color: '#B91C1C',
+  },
+  driverStatusPillInactive: {
+    backgroundColor: '#E2E8F0',
+  },
+  driverStatusTextInactive: {
+    color: '#475569',
+  },
+  driverMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  driverMetaItem: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minHeight: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  driverMetaTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverMetaLabel: {
+    color: '#7A908D',
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+  },
+  driverMetaValue: {
+    color: '#102A28',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  driverActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  driverActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+  },
+  driverActionButtonDanger: {
+    borderColor: '#F1D6D6',
+    backgroundColor: '#FFF4F4',
+  },
+  driverActionText: {
+    color: '#102A28',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  driverActionTextDanger: {
+    color: '#C13B3B',
   },
   adminPanelHeader: {
     alignItems: 'center',
