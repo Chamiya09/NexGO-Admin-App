@@ -239,6 +239,15 @@ export default function AdminUsersScreen() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ status: nextStatus }),
             });
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const message =
+                typeof body === 'object' && body !== null && 'message' in body
+                  ? String((body as { message?: string }).message)
+                  : 'Request failed';
+              throw new Error(`${message} (HTTP ${res.status})`);
+            }
+
             const data = await parseApiResponse<{ driver: DriverUser }>(res);
 
             setDriverUsers((current) =>
@@ -251,7 +260,9 @@ export default function AdminUsersScreen() {
               current && current.id === driver.id ? { ...current, status: data.driver.status } : current
             );
           } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : 'Unable to update driver status.');
+            const message = error instanceof Error ? error.message : 'Unable to update driver status.';
+            setErrorMessage(message);
+            Alert.alert('Request failed', message);
           }
         },
       },
