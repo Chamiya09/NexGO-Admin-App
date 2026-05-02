@@ -8,6 +8,7 @@ type AdminAnalytics = {
   totalRevenue: number;
   totalCommission?: number;
   activeRides: number;
+  completedRides?: number;
   cancelledRides: number;
   waitTimeAvg: string | number;
 };
@@ -76,6 +77,13 @@ export function AdminAnalyticsOverview() {
       percent: 'Live', 
       isPositive: true,
       icon: 'navigate-circle-outline' as const
+    },
+    { 
+      title: 'Completed Rides', 
+      amount: data?.completedRides?.toString() || '0', 
+      percent: 'All time', 
+      isPositive: true,
+      icon: 'checkmark-done-outline' as const
     },
     { 
       title: 'Wait-time Avg', 
