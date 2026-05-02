@@ -159,6 +159,7 @@ export default function AdminUsersScreen() {
 
   const handleReviewDocument = useCallback(async (driverId: string, documentType: string, status: 'approved' | 'rejected') => {
     try {
+      setErrorMessage(null);
       setDocReviewing(documentType);
       const res = await authFetch(`${API_BASE_URL}/driver-auth/drivers/${driverId}/documents/${documentType}`, {
         method: 'PATCH',
@@ -166,14 +167,33 @@ export default function AdminUsersScreen() {
         body: JSON.stringify({ status })
       });
       const data = await parseApiResponse(res);
-      if (!data.success) {
-        setErrorMessage(data.message || `Failed to ${status} document`);
+      const isSuccess =
+        typeof data === 'object' &&
+        data !== null &&
+        'success' in data
+          ? Boolean((data as { success?: boolean }).success)
+          : true;
+
+      if (!isSuccess) {
+        const message =
+          typeof data === 'object' && data !== null && 'message' in data
+            ? String((data as { message?: string }).message)
+            : null;
+        setErrorMessage(message || `Failed to ${status} document`);
       } else {
-        await loadManagementData();
-        // Update local modal state
+        // Update local driver + modal state without refetching full lists.
+        setDriverUsers((current) =>
+          current.map((driver) => {
+            if (driver.id !== driverId) return driver;
+            const updatedDocs = driver.documents?.map((doc) =>
+              doc.documentType === documentType ? { ...doc, status } : doc
+            );
+            return { ...driver, documents: updatedDocs };
+          })
+        );
         setSelectedDriver(prev => {
           if (!prev) return prev;
-          const updatedDocs = prev.documents?.map(doc => 
+          const updatedDocs = prev.documents?.map(doc =>
             doc.documentType === documentType ? { ...doc, status } : doc
           );
           return { ...prev, documents: updatedDocs };
@@ -1247,22 +1267,32 @@ function DriverDocsModal({
                           <Ionicons name="expand-outline" size={16} color={teal} />
                           <Text style={[styles.docActionText, { color: teal }]}>View</Text>
                         </Pressable>
-                        <Pressable
-                            style={[styles.actionBtnApprove, reviewingDoc === doc.documentType || doc.status === 'approved' ? styles.docActionButtonDisabled : null]}
-                            disabled={reviewingDoc === doc.documentType || doc.status === 'approved'}
-                            onPress={() => onReview(driver.id, doc.documentType, 'approved')}
-                        >
-                          <Ionicons name="checkmark-outline" size={16} color="#157A62" />
-                          <Text style={[styles.docActionText, { color: '#157A62' }]}>Approve</Text>
-                        </Pressable>
-                        <Pressable
-                            style={[styles.actionBtnReject, reviewingDoc === doc.documentType || doc.status === 'rejected' ? styles.docActionButtonDisabled : null]}
-                            disabled={reviewingDoc === doc.documentType || doc.status === 'rejected'}
-                            onPress={() => onReview(driver.id, doc.documentType, 'rejected')}
-                        >
-                          <Ionicons name="close-outline" size={16} color="#C13B3B" />
-                          <Text style={[styles.docActionText, { color: '#C13B3B' }]}>Reject</Text>
-                        </Pressable>
+                        {doc.status !== 'approved' && doc.status !== 'rejected' ? (
+                          <>
+                            <Pressable
+                              style={[
+                                styles.actionBtnApprove,
+                                reviewingDoc === doc.documentType ? styles.docActionButtonDisabled : null,
+                              ]}
+                              disabled={reviewingDoc === doc.documentType}
+                              onPress={() => onReview(driver.id, doc.documentType, 'approved')}
+                            >
+                              <Ionicons name="checkmark-outline" size={16} color="#157A62" />
+                              <Text style={[styles.docActionText, { color: '#157A62' }]}>Approve</Text>
+                            </Pressable>
+                            <Pressable
+                              style={[
+                                styles.actionBtnReject,
+                                reviewingDoc === doc.documentType ? styles.docActionButtonDisabled : null,
+                              ]}
+                              disabled={reviewingDoc === doc.documentType}
+                              onPress={() => onReview(driver.id, doc.documentType, 'rejected')}
+                            >
+                              <Ionicons name="close-outline" size={16} color="#C13B3B" />
+                              <Text style={[styles.docActionText, { color: '#C13B3B' }]}>Reject</Text>
+                            </Pressable>
+                          </>
+                        ) : null}
                       </View>
                     </View>
                   </View>
@@ -1503,8 +1533,9 @@ const styles = StyleSheet.create({
   fullScreenOverlay: {
     flex: 1,
     backgroundColor: 'rgba(7, 21, 19, 0.72)',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 16 : 28,
+    paddingBottom: 28,
     justifyContent: 'center',
   },
   fullScreenCard: {
@@ -1514,6 +1545,8 @@ const styles = StyleSheet.create({
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
+    marginHorizontal: 0,
+    marginVertical: 0,
   },
   fullScreenHeader: {
     minHeight: 54,
