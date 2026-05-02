@@ -395,20 +395,7 @@ export default function AdminUsersScreen() {
             ) : null}
 
             {passengerUsers.map((user) => (
-              <View key={user.id} style={styles.passengerRow}>
-                <View style={styles.passengerIdentity}>
-                  <ProfileAvatar imageUrl={user.profileImageUrl} name={user.fullName} fallback="P" />
-                  <View>
-                    <Text style={styles.reviewName}>{user.fullName}</Text>
-                    <Text style={styles.reviewMeta}>
-                      {user.id} | {user.email} | {user.phoneNumber || 'No phone'}
-                    </Text>
-                  </View>
-                </View>
-                <Pressable style={styles.suspendButton}>
-                  <Text style={styles.suspendButtonText}>Suspend Account</Text>
-                </Pressable>
-              </View>
+              <PassengerAccountCard key={user.id} user={user} />
             ))}
           </View>
         )}
@@ -445,6 +432,69 @@ function EmptyStateCard({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
     <View style={styles.emptyStateCard}>
       <Ionicons name={icon} size={18} color={teal} />
       <Text style={styles.emptyStateText}>{text}</Text>
+    </View>
+  );
+}
+
+function PassengerAccountCard({ user }: { user: PassengerUser }) {
+  return (
+    <View style={styles.passengerAccountCard}>
+      <View style={styles.passengerCardTopRow}>
+        <View style={styles.passengerIdentity}>
+          <ProfileAvatar imageUrl={user.profileImageUrl} name={user.fullName} fallback="P" size={48} />
+          <View style={styles.passengerTextWrap}>
+            <Text style={styles.passengerName} numberOfLines={1}>{user.fullName}</Text>
+            <Text style={styles.passengerSubtitle} numberOfLines={1}>{user.email}</Text>
+          </View>
+        </View>
+
+        <View style={styles.passengerStatusPill}>
+          <View style={styles.passengerStatusDot} />
+          <Text style={styles.passengerStatusText}>Active</Text>
+        </View>
+      </View>
+
+      <View style={styles.passengerMetaGrid}>
+        <PassengerMetaItem icon="finger-print-outline" label="Passenger ID" value={formatShortId(user.id)} />
+        <PassengerMetaItem icon="call-outline" label="Phone" value={user.phoneNumber || 'No phone'} />
+      </View>
+
+      <View style={styles.passengerCardFooter}>
+        <View style={styles.passengerProfileState}>
+          <Ionicons
+            name={user.profileImageUrl ? 'image-outline' : 'close-circle-outline'}
+            size={15}
+            color={user.profileImageUrl ? teal : '#8AA19E'}
+          />
+          <Text style={styles.passengerProfileStateText}>
+            {user.profileImageUrl ? 'Profile photo added' : 'No profile photo'}
+          </Text>
+        </View>
+        <Pressable style={styles.suspendButton}>
+          <Ionicons name="ban-outline" size={15} color="#C13B3B" />
+          <Text style={styles.suspendButtonText}>Suspend</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function PassengerMetaItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.passengerMetaItem}>
+      <Ionicons name={icon} size={16} color={teal} />
+      <View style={styles.passengerMetaTextWrap}>
+        <Text style={styles.passengerMetaLabel}>{label}</Text>
+        <Text style={styles.passengerMetaValue} numberOfLines={1}>{value}</Text>
+      </View>
     </View>
   );
 }
@@ -775,6 +825,14 @@ function formatDriverId(id: string) {
   }
 
   return id.length > 10 ? `${id.slice(0, 10)}...` : id;
+}
+
+function formatShortId(id: string) {
+  if (!id) {
+    return 'Passenger';
+  }
+
+  return id.length > 12 ? `${id.slice(0, 12)}...` : id;
 }
 
 function isImageDocument(fileUrl?: string) {
@@ -1331,6 +1389,118 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 12,
   },
+  passengerAccountCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 14,
+    marginBottom: 12,
+    gap: 12,
+  },
+  passengerCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  passengerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passengerName: {
+    color: '#102A28',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  passengerSubtitle: {
+    color: '#617C79',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  passengerStatusPill: {
+    minHeight: 30,
+    borderRadius: 999,
+    backgroundColor: '#E7F5F3',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  passengerStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: teal,
+  },
+  passengerStatusText: {
+    color: teal,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  passengerMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  passengerMetaItem: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minHeight: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  passengerMetaTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passengerMetaLabel: {
+    color: '#7A908D',
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+  },
+  passengerMetaValue: {
+    color: '#102A28',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  passengerCardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5F0EE',
+    paddingTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  passengerProfileState: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  passengerProfileStateText: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(7, 21, 19, 0.55)',
@@ -1532,6 +1702,8 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   passengerIdentity: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1559,16 +1731,20 @@ const styles = StyleSheet.create({
   },
   suspendButton: {
     alignSelf: 'flex-start',
-    minHeight: 40,
+    minHeight: 36,
     borderRadius: 12,
-    backgroundColor: '#C13B3B',
-    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#F1D6D6',
+    backgroundColor: '#FFF4F4',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
   },
   suspendButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: '#C13B3B',
+    fontSize: 12,
     fontWeight: '800',
   },
 });
