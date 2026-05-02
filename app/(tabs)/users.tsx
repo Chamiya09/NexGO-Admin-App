@@ -253,44 +253,46 @@ export default function AdminUsersScreen() {
           </View>
         ) : activeTab === 'admins' ? (
           <View style={styles.panelCard}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>ADMIN ACCOUNTS</Text>
-                  <Text style={styles.panelTitle}>Admin management</Text>
+            <View style={[styles.panelHeader, styles.adminPanelHeader]}>
+              <View style={styles.adminHeaderTitleWrap}>
+                <Text style={styles.panelEyebrow}>ADMIN ACCOUNTS</Text>
+                <Text style={styles.panelTitle}>Admin management</Text>
+              </View>
+              <View style={[styles.adminHeaderActions, !isWide ? styles.adminHeaderActionsCompact : null]}>
+                <View style={[styles.panelBadge, styles.adminCountBadge]}>
+                  <Text style={styles.panelBadgeText}>{adminUsers.length} admins</Text>
                 </View>
-                <View style={styles.adminHeaderActions}>
-                  <View style={styles.panelBadge}>
-                    <Text style={styles.panelBadgeText}>{adminUsers.length} admins</Text>
+                <Pressable style={styles.createAdminButton} onPress={openCreateAdminModal}>
+                  <View style={styles.createAdminIcon}>
+                    <Ionicons name="add" size={16} color="#FFFFFF" />
                   </View>
-                  <Pressable style={styles.createAdminButton} onPress={openCreateAdminModal}>
-                    <Ionicons name="add" size={18} color="#FFFFFF" />
-                    <Text style={styles.createAdminButtonText}>Add Admin</Text>
-                  </Pressable>
+                  <Text style={styles.createAdminButtonText}>Add Admin</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {adminFormMessage ? <Text style={styles.formSuccessText}>{adminFormMessage}</Text> : null}
+
+            {adminUsers.length === 0 ? (
+              <EmptyStateCard icon="shield-outline" text="No admin accounts were returned by the backend." />
+            ) : null}
+
+            {adminUsers.map((admin) => (
+              <View key={admin.id} style={styles.passengerRow}>
+                <View style={styles.passengerIdentity}>
+                  <ProfileAvatar imageUrl={admin.profileImageUrl} name={admin.fullName} fallback="A" />
+                  <View style={styles.reviewTextWrap}>
+                    <Text style={styles.reviewName}>{admin.fullName}</Text>
+                    <Text style={styles.reviewMeta}>
+                      {admin.email} | {admin.phoneNumber || 'No phone'}
+                    </Text>
+                    <Text style={styles.reviewDetailLine}>
+                      {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-
-              {adminFormMessage ? <Text style={styles.formSuccessText}>{adminFormMessage}</Text> : null}
-
-              {adminUsers.length === 0 ? (
-                <EmptyStateCard icon="shield-outline" text="No admin accounts were returned by the backend." />
-              ) : null}
-
-              {adminUsers.map((admin) => (
-                <View key={admin.id} style={styles.passengerRow}>
-                  <View style={styles.passengerIdentity}>
-                    <ProfileAvatar imageUrl={admin.profileImageUrl} name={admin.fullName} fallback="A" />
-                    <View style={styles.reviewTextWrap}>
-                      <Text style={styles.reviewName}>{admin.fullName}</Text>
-                      <Text style={styles.reviewMeta}>
-                        {admin.email} | {admin.phoneNumber || 'No phone'}
-                      </Text>
-                      <Text style={styles.reviewDetailLine}>
-                        {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
+            ))}
           </View>
         ) : activeTab === 'drivers' ? (
           <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
@@ -1059,26 +1061,60 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  adminPanelHeader: {
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  adminHeaderTitleWrap: {
+    flex: 1,
+    minWidth: 190,
+  },
   adminHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
+  },
+  adminHeaderActionsCompact: {
+    flex: 1,
+    minWidth: '100%',
+    justifyContent: 'space-between',
+  },
+  adminCountBadge: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createAdminButton: {
-    minHeight: 38,
-    borderRadius: 12,
+    minHeight: 42,
+    minWidth: 132,
+    borderRadius: 14,
     backgroundColor: teal,
-    paddingHorizontal: 12,
+    paddingLeft: 10,
+    paddingRight: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    shadowColor: teal,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  createAdminIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createAdminButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
   },
   reviewCard: {
