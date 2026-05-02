@@ -11,6 +11,7 @@ import {
   StatusBar as RNStatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -57,17 +58,57 @@ type DriverUser = {
   documents?: DriverDocument[];
 };
 
+type AdminUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  profileImageUrl?: string;
+  role?: string;
+  scope?: string;
+  office?: string;
+  shift?: string;
+};
+
 type SelectedDriverDocument = {
   driver: DriverUser;
   document: DriverDocument;
 };
 
+type NewAdminForm = {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+  scope: string;
+  office: string;
+  shift: string;
+  password: string;
+};
+
+const emptyNewAdminForm: NewAdminForm = {
+  fullName: '',
+  email: '',
+  phoneNumber: '',
+  role: 'Operations Admin',
+  scope: 'NexGO Control Center',
+  office: 'Colombo HQ',
+  shift: 'Full operations coverage',
+  password: '',
+};
+
 export default function AdminUsersScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
-  const [activeTab, setActiveTab] = useState<'passengers' | 'drivers'>('drivers');
+  const [activeTab, setActiveTab] = useState<'passengers' | 'drivers' | 'admins'>('drivers');
   const [passengerUsers, setPassengerUsers] = useState<PassengerUser[]>([]);
   const [driverUsers, setDriverUsers] = useState<DriverUser[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [newAdminForm, setNewAdminForm] = useState<NewAdminForm>(emptyNewAdminForm);
+  const [createAdminModalVisible, setCreateAdminModalVisible] = useState(false);
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [adminFormMessage, setAdminFormMessage] = useState<string | null>(null);
+  const [adminFormError, setAdminFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<SelectedDriverDocument | null>(null);
@@ -77,18 +118,21 @@ export default function AdminUsersScreen() {
     setErrorMessage(null);
 
     try {
-      const [usersResponse, driversResponse] = await Promise.all([
+      const [usersResponse, driversResponse, adminsResponse] = await Promise.all([
         authFetch(`${API_BASE_URL}/auth/users`),
         authFetch(`${API_BASE_URL}/driver-auth/drivers`),
+        authFetch(`${API_BASE_URL}/admin/admins`),
       ]);
 
-      const [{ users }, { drivers }] = await Promise.all([
+      const [{ users }, { drivers }, { admins }] = await Promise.all([
         parseApiResponse<{ users: PassengerUser[] }>(usersResponse),
         parseApiResponse<{ drivers: DriverUser[] }>(driversResponse),
+        parseApiResponse<{ admins: AdminUser[] }>(adminsResponse),
       ]);
 
       setPassengerUsers(users);
       setDriverUsers(drivers);
+      setAdminUsers(admins);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load management data.');
     } finally {
@@ -118,6 +162,49 @@ export default function AdminUsersScreen() {
     setSelectedDocument({ driver, document });
   };
 
+  const openCreateAdminModal = () => {
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+    setCreateAdminModalVisible(true);
+  };
+
+  const closeCreateAdminModal = () => {
+    if (!creatingAdmin) {
+      setCreateAdminModalVisible(false);
+      setAdminFormError(null);
+    }
+  };
+
+  const handleNewAdminChange = (field: keyof NewAdminForm, value: string) => {
+    setNewAdminForm((current) => ({ ...current, [field]: value }));
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+  };
+
+  const createAdminAccount = async () => {
+    setCreatingAdmin(true);
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+
+    try {
+      const response = await authFetch(`${API_BASE_URL}/admin/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAdminForm),
+      });
+      const data = await parseApiResponse<{ admin: AdminUser; message?: string }>(response);
+
+      setAdminUsers((current) => [data.admin, ...current.filter((admin) => admin.id !== data.admin.id)]);
+      setNewAdminForm(emptyNewAdminForm);
+      setAdminFormMessage(data.message || 'Admin account created successfully.');
+      setCreateAdminModalVisible(false);
+    } catch (error) {
+      setAdminFormError(error instanceof Error ? error.message : 'Unable to create admin account.');
+    } finally {
+      setCreatingAdmin(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -131,6 +218,13 @@ export default function AdminUsersScreen() {
         </Text>
 
         <View style={styles.tabRow}>
+          <Pressable
+            style={[styles.tabButton, activeTab === 'admins' ? styles.tabButtonActive : null]}
+            onPress={() => setActiveTab('admins')}>
+            <Text style={[styles.tabButtonText, activeTab === 'admins' ? styles.tabButtonTextActive : null]}>
+              Admins
+            </Text>
+          </Pressable>
           <Pressable
             style={[styles.tabButton, activeTab === 'passengers' ? styles.tabButtonActive : null]}
             onPress={() => setActiveTab('passengers')}>
@@ -156,6 +250,47 @@ export default function AdminUsersScreen() {
           <View style={styles.stateCard}>
             <Ionicons name="alert-circle-outline" size={18} color="#C13B3B" />
             <Text style={styles.stateErrorText}>{errorMessage}</Text>
+          </View>
+        ) : activeTab === 'admins' ? (
+          <View style={styles.panelCard}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>ADMIN ACCOUNTS</Text>
+                  <Text style={styles.panelTitle}>Admin management</Text>
+                </View>
+                <View style={styles.adminHeaderActions}>
+                  <View style={styles.panelBadge}>
+                    <Text style={styles.panelBadgeText}>{adminUsers.length} admins</Text>
+                  </View>
+                  <Pressable style={styles.createAdminButton} onPress={openCreateAdminModal}>
+                    <Ionicons name="add" size={18} color="#FFFFFF" />
+                    <Text style={styles.createAdminButtonText}>Add Admin</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {adminFormMessage ? <Text style={styles.formSuccessText}>{adminFormMessage}</Text> : null}
+
+              {adminUsers.length === 0 ? (
+                <EmptyStateCard icon="shield-outline" text="No admin accounts were returned by the backend." />
+              ) : null}
+
+              {adminUsers.map((admin) => (
+                <View key={admin.id} style={styles.passengerRow}>
+                  <View style={styles.passengerIdentity}>
+                    <ProfileAvatar imageUrl={admin.profileImageUrl} name={admin.fullName} fallback="A" />
+                    <View style={styles.reviewTextWrap}>
+                      <Text style={styles.reviewName}>{admin.fullName}</Text>
+                      <Text style={styles.reviewMeta}>
+                        {admin.email} | {admin.phoneNumber || 'No phone'}
+                      </Text>
+                      <Text style={styles.reviewDetailLine}>
+                        {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
           </View>
         ) : activeTab === 'drivers' ? (
           <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
@@ -281,6 +416,15 @@ export default function AdminUsersScreen() {
         selectedDocument={selectedDocument}
         onClose={closeDocumentModal}
       />
+      <CreateAdminModal
+        visible={createAdminModalVisible}
+        form={newAdminForm}
+        errorMessage={adminFormError}
+        creating={creatingAdmin}
+        onChange={handleNewAdminChange}
+        onCreate={createAdminAccount}
+        onClose={closeCreateAdminModal}
+      />
     </SafeAreaView>
   );
 }
@@ -300,6 +444,130 @@ function EmptyStateCard({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
       <Ionicons name={icon} size={18} color={teal} />
       <Text style={styles.emptyStateText}>{text}</Text>
     </View>
+  );
+}
+
+function AdminInput({
+  label,
+  ...inputProps
+}: {
+  label: string;
+} & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={styles.adminInputGroup}>
+      <Text style={styles.adminInputLabel}>{label}</Text>
+      <TextInput
+        style={styles.adminInput}
+        placeholderTextColor="#8AA19E"
+        autoCorrect={false}
+        {...inputProps}
+      />
+    </View>
+  );
+}
+
+function CreateAdminModal({
+  visible,
+  form,
+  errorMessage,
+  creating,
+  onChange,
+  onCreate,
+  onClose,
+}: {
+  visible: boolean;
+  form: NewAdminForm;
+  errorMessage: string | null;
+  creating: boolean;
+  onChange: (field: keyof NewAdminForm, value: string) => void;
+  onCreate: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.createAdminModalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTextWrap}>
+              <Text style={styles.modalTitle}>Create Admin</Text>
+              <Text style={styles.modalSubtitle}>Add a new admin account for the operations workspace.</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose} disabled={creating}>
+              <Ionicons name="close" size={20} color="#102A28" />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={styles.createAdminFormScroll}
+            contentContainerStyle={styles.createAdminFormContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <AdminInput
+              label="Full name"
+              value={form.fullName}
+              onChangeText={(value) => onChange('fullName', value)}
+            />
+            <AdminInput
+              label="Email"
+              value={form.email}
+              onChangeText={(value) => onChange('email', value)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <AdminInput
+              label="Phone number"
+              value={form.phoneNumber}
+              onChangeText={(value) => onChange('phoneNumber', value)}
+              keyboardType="phone-pad"
+            />
+            <AdminInput
+              label="Role"
+              value={form.role}
+              onChangeText={(value) => onChange('role', value)}
+            />
+            <AdminInput
+              label="Scope"
+              value={form.scope}
+              onChangeText={(value) => onChange('scope', value)}
+            />
+            <AdminInput
+              label="Office"
+              value={form.office}
+              onChangeText={(value) => onChange('office', value)}
+            />
+            <AdminInput
+              label="Shift"
+              value={form.shift}
+              onChangeText={(value) => onChange('shift', value)}
+            />
+            <AdminInput
+              label="Password"
+              value={form.password}
+              onChangeText={(value) => onChange('password', value)}
+              secureTextEntry
+            />
+
+            {errorMessage ? <Text style={styles.formErrorText}>{errorMessage}</Text> : null}
+          </ScrollView>
+
+          <View style={styles.modalActionRow}>
+            <Pressable style={styles.modalSecondaryButton} onPress={onClose} disabled={creating}>
+              <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalPrimaryButton, creating ? styles.modalButtonDisabled : null]}
+              onPress={onCreate}
+              disabled={creating}>
+              {creating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalPrimaryButtonText}>Create Admin</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -791,6 +1059,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  adminHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  createAdminButton: {
+    minHeight: 38,
+    borderRadius: 12,
+    backgroundColor: teal,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  createAdminButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   reviewCard: {
     borderRadius: 18,
     borderWidth: 1,
@@ -961,6 +1251,41 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: '500',
   },
+  adminForm: {
+    gap: 12,
+    marginTop: 16,
+  },
+  adminInputGroup: {
+    gap: 6,
+  },
+  adminInputLabel: {
+    color: '#617C79',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  adminInput: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    paddingHorizontal: 12,
+    color: '#102A28',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  formErrorText: {
+    color: '#C13B3B',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  formSuccessText: {
+    color: teal,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
   passengerRow: {
     borderRadius: 18,
     borderWidth: 1,
@@ -983,6 +1308,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 16,
     maxHeight: '82%',
+  },
+  createAdminModalCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    maxHeight: '86%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1153,6 +1486,14 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.45,
+  },
+  createAdminFormScroll: {
+    maxHeight: 500,
+    marginBottom: 14,
+  },
+  createAdminFormContent: {
+    gap: 12,
+    paddingBottom: 2,
   },
   passengerIdentity: {
     flexDirection: 'row',
