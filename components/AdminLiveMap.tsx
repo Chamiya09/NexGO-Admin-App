@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
+import MapView, { Callout, Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
@@ -35,12 +35,17 @@ const vehicleMarkerImages: Record<'Bike' | 'Tuk' | 'Mini' | 'Car' | 'Van' | 'Def
 type DriverUser = {
   id: string;
   fullName: string;
+  email?: string;
   phoneNumber: string;
+  profileImageUrl?: string;
+  status?: string;
+  isOnline?: boolean;
   vehicle?: {
     category?: string;
     make?: string;
     model?: string;
     plateNumber?: string;
+    color?: string;
   } | null;
 };
 
@@ -62,6 +67,7 @@ export function AdminLiveMap() {
   const [isLiveMapModalVisible, setIsLiveMapModalVisible] = useState(false);
   const [isDashboardMapReady, setIsDashboardMapReady] = useState(false);
   const [isPopupMapReady, setIsPopupMapReady] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,6 +171,9 @@ export function AdminLiveMap() {
   );
 
   const visibleMapDrivers = onlineDrivers.length > 0 ? onlineDrivers : trackedDrivers;
+  const selectedDriver = selectedDriverId
+    ? visibleMapDrivers.find((driver) => String(driver.driverId || driver.id) === selectedDriverId) || null
+    : null;
 
   const mapRegion = useMemo(
     () =>
@@ -263,8 +272,7 @@ export function AdminLiveMap() {
                     <Marker
                       key={String(driver.driverId || driver.id)}
                       coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      title={driver.fullName || 'Driver'}
-                      description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
+                      onPress={() => setSelectedDriverId(String(driver.driverId || driver.id))}>
                       <Image
                         source={getVehicleMarkerSource(vehicleCategory)}
                         style={[
@@ -273,6 +281,9 @@ export function AdminLiveMap() {
                           getVehicleHeadingStyle(driver.heading),
                         ]}
                       />
+                      <Callout tooltip>
+                        <DriverMapCallout driver={driver} />
+                      </Callout>
                     </Marker>
                   );
                 })}
@@ -300,6 +311,8 @@ export function AdminLiveMap() {
                 <Text style={styles.liveMapStatLabel}>Online</Text>
               </View>
             </View>
+
+            {selectedDriver ? <DriverDetailsCard driver={selectedDriver} compact={isMedium} /> : null}
           </View>
         )}
       </View>
@@ -325,53 +338,59 @@ export function AdminLiveMap() {
               </Pressable>
             </View>
 
-            <View style={styles.mapModalShell}>
-              <MapView
-                style={styles.liveMap}
-                provider={PROVIDER_DEFAULT}
-                initialRegion={mapRegion}
-                mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
-                loadingEnabled
-                loadingBackgroundColor="#E8F0EF"
-                loadingIndicatorColor={teal}
-                onMapReady={() => setIsPopupMapReady(true)}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                scrollEnabled
-                zoomEnabled
-                rotateEnabled
-                pitchEnabled>
-                <UrlTile
-                  urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  maximumZ={19}
-                  flipY={false}
-                />
-                {visibleMapDrivers.map((driver) => {
-                  const vehicleCategory = getVehicleCategory(driver);
+            <View style={[styles.mapModalBody, isWide ? styles.mapModalBodyWide : null]}>
+              <View style={styles.mapModalShell}>
+                <MapView
+                  style={styles.liveMap}
+                  provider={PROVIDER_DEFAULT}
+                  initialRegion={mapRegion}
+                  mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
+                  loadingEnabled
+                  loadingBackgroundColor="#E8F0EF"
+                  loadingIndicatorColor={teal}
+                  onMapReady={() => setIsPopupMapReady(true)}
+                  showsUserLocation={false}
+                  showsMyLocationButton={false}
+                  scrollEnabled
+                  zoomEnabled
+                  rotateEnabled
+                  pitchEnabled>
+                  <UrlTile
+                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maximumZ={19}
+                    flipY={false}
+                  />
+                  {visibleMapDrivers.map((driver) => {
+                    const vehicleCategory = getVehicleCategory(driver);
 
-                  return (
-                    <Marker
-                      key={String(driver.driverId || driver.id)}
-                      coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      title={driver.fullName || 'Driver'}
-                      description={`${vehicleCategory || formatVehicle(driver.vehicle)} | ${driver.vehicle?.plateNumber || 'No plate'}`}>
-                      <Image
-                        source={getVehicleMarkerSource(vehicleCategory)}
-                        style={[
-                          styles.vehicleMarkerImage,
-                          !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
-                          getVehicleHeadingStyle(driver.heading),
-                        ]}
-                      />
-                    </Marker>
-                  );
-                })}
-              </MapView>
-              {!isPopupMapReady ? (
-                <View style={styles.mapLoadingOverlay}>
-                  <ActivityIndicator size="small" color={teal} />
-                </View>
-              ) : null}
+                    return (
+                      <Marker
+                        key={String(driver.driverId || driver.id)}
+                        coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
+                        onPress={() => setSelectedDriverId(String(driver.driverId || driver.id))}>
+                        <Image
+                          source={getVehicleMarkerSource(vehicleCategory)}
+                          style={[
+                            styles.vehicleMarkerImage,
+                            !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
+                            getVehicleHeadingStyle(driver.heading),
+                          ]}
+                        />
+                        <Callout tooltip>
+                          <DriverMapCallout driver={driver} />
+                        </Callout>
+                      </Marker>
+                    );
+                  })}
+                </MapView>
+                {!isPopupMapReady ? (
+                  <View style={styles.mapLoadingOverlay}>
+                    <ActivityIndicator size="small" color={teal} />
+                  </View>
+                ) : null}
+              </View>
+
+              {selectedDriver ? <DriverDetailsCard driver={selectedDriver} expanded /> : null}
             </View>
           </View>
         </View>
@@ -430,6 +449,153 @@ function formatVehicle(vehicle: DriverUser['vehicle']) {
   }
 
   return [vehicle.category, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle added';
+}
+
+function formatDriverId(driver: DriverLocationRecord) {
+  return String(driver.driverId || driver.id || '').slice(-6).toUpperCase() || 'N/A';
+}
+
+function formatSignalTime(updatedAt?: number) {
+  const timestamp = Number(updatedAt);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return 'No signal time';
+  }
+
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatCoordinate(value?: number) {
+  const coordinate = Number(value);
+  if (!Number.isFinite(coordinate)) {
+    return 'N/A';
+  }
+
+  return coordinate.toFixed(5);
+}
+
+function DriverDetailsCard({
+  driver,
+  compact = false,
+  expanded = false,
+}: {
+  driver: DriverLocationRecord;
+  compact?: boolean;
+  expanded?: boolean;
+}) {
+  const vehicleCategory = getVehicleCategory(driver);
+  const initials = String(driver.fullName || 'D')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+  const isOnline = Boolean(driver.isOnline);
+
+  return (
+    <View style={[styles.driverDetailsCard, compact ? styles.driverDetailsCardCompact : null, expanded ? styles.driverDetailsCardExpanded : null]}>
+      <View style={styles.driverDetailsHeader}>
+        <View style={styles.driverAvatar}>
+          <Text style={styles.driverAvatarText}>{initials || 'D'}</Text>
+        </View>
+        <View style={styles.driverDetailsTitleWrap}>
+          <Text style={styles.driverDetailsEyebrow}>SELECTED DRIVER</Text>
+          <Text style={styles.driverDetailsName} numberOfLines={1}>
+            {driver.fullName || 'Driver'}
+          </Text>
+          <Text style={styles.driverDetailsSubline} numberOfLines={1}>
+            {formatVehicle(driver.vehicle)}
+          </Text>
+        </View>
+        <View style={[styles.driverLivePill, isOnline ? styles.driverLivePillOnline : styles.driverLivePillOffline]}>
+          <View style={[styles.driverLiveDot, isOnline ? styles.driverLiveDotOnline : styles.driverLiveDotOffline]} />
+          <Text style={[styles.driverLivePillText, isOnline ? styles.driverLivePillTextOnline : styles.driverLivePillTextOffline]}>
+            {isOnline ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.driverDetailsGrid}>
+        <DriverDetailItem icon="finger-print-outline" label="Driver ID" value={formatDriverId(driver)} />
+        <DriverDetailItem icon="car-sport-outline" label="Vehicle" value={vehicleCategory || driver.vehicleCategory || 'Vehicle'} />
+        <DriverDetailItem icon="barcode-outline" label="Plate" value={driver.vehicle?.plateNumber || 'No plate'} />
+        <DriverDetailItem icon="color-palette-outline" label="Color" value={driver.vehicle?.color || 'Not set'} />
+        <DriverDetailItem icon="call-outline" label="Phone" value={driver.phoneNumber || 'No phone'} />
+        <DriverDetailItem icon="time-outline" label="Signal" value={formatSignalTime(driver.updatedAt)} />
+      </View>
+
+      <View style={styles.driverLocationPanel}>
+        <View style={styles.driverLocationTitleRow}>
+          <Ionicons name="location-outline" size={15} color={teal} />
+          <Text style={styles.driverLocationTitle}>Current position</Text>
+        </View>
+        <View style={styles.driverCoordinateRow}>
+          <Text style={styles.driverCoordinateText}>Lat {formatCoordinate(driver.latitude)}</Text>
+          <Text style={styles.driverCoordinateText}>Lng {formatCoordinate(driver.longitude)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function DriverDetailItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.driverDetailItem}>
+      <View style={styles.driverDetailIcon}>
+        <Ionicons name={icon} size={14} color={teal} />
+      </View>
+      <View style={styles.driverDetailTextWrap}>
+        <Text style={styles.driverDetailLabel}>{label}</Text>
+        <Text style={styles.driverDetailValue} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function DriverMapCallout({ driver }: { driver: DriverLocationRecord }) {
+  const vehicleCategory = getVehicleCategory(driver);
+  const vehicleLabel = vehicleCategory || driver.vehicleCategory || driver.vehicle?.category || 'Vehicle';
+  const plateLabel = driver.vehicle?.plateNumber || 'No plate';
+
+  return (
+    <View style={styles.calloutWrap}>
+      <View style={styles.calloutCard}>
+        <View style={styles.calloutTopRow}>
+          <View style={styles.calloutVehicleIcon}>
+            <Image source={getVehicleMarkerSource(vehicleCategory)} style={styles.calloutVehicleImage} />
+          </View>
+          <View style={styles.calloutTextWrap}>
+            <Text style={styles.calloutName} numberOfLines={1}>
+              {driver.fullName || 'Driver'}
+            </Text>
+            <View style={styles.calloutMetaRow}>
+              <Text style={styles.calloutVehicleText} numberOfLines={1}>
+                {vehicleLabel}
+              </Text>
+              <View style={styles.calloutMetaDivider} />
+              <Text style={styles.calloutPlateText} numberOfLines={1}>
+                {plateLabel}
+              </Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.calloutFooter}>
+          <View style={[styles.calloutStatusDot, driver.isOnline ? styles.calloutStatusDotOnline : null]} />
+          <Text style={styles.calloutStatusText}>{driver.isOnline ? 'Live tracking' : 'Last known location'}</Text>
+        </View>
+      </View>
+      <View style={styles.calloutArrow} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -624,6 +790,286 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  driverDetailsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 12,
+    gap: 12,
+  },
+  driverDetailsCardCompact: {
+    width: 270,
+    alignSelf: 'stretch',
+  },
+  driverDetailsCardExpanded: {
+    width: 320,
+    alignSelf: 'stretch',
+  },
+  driverDetailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  driverAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#C9E4E0',
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  driverAvatarText: {
+    color: teal,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  driverDetailsTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverDetailsEyebrow: {
+    color: teal,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  driverDetailsName: {
+    color: '#102A28',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  driverDetailsSubline: {
+    color: '#617C79',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  driverLivePill: {
+    minHeight: 28,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  driverLivePillOnline: {
+    backgroundColor: '#E7F5F3',
+  },
+  driverLivePillOffline: {
+    backgroundColor: '#EEF2F1',
+  },
+  driverLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  driverLiveDotOnline: {
+    backgroundColor: teal,
+  },
+  driverLiveDotOffline: {
+    backgroundColor: '#7A908D',
+  },
+  driverLivePillText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  driverLivePillTextOnline: {
+    color: teal,
+  },
+  driverLivePillTextOffline: {
+    color: '#617C79',
+  },
+  driverDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  driverDetailItem: {
+    flex: 1,
+    flexBasis: 120,
+    minWidth: 116,
+    minHeight: 54,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  driverDetailIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  driverDetailTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverDetailLabel: {
+    color: '#7A908D',
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  driverDetailValue: {
+    color: '#102A28',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  driverLocationPanel: {
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#C9E4E0',
+    backgroundColor: '#E7F5F3',
+    padding: 10,
+    gap: 8,
+  },
+  driverLocationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  driverLocationTitle: {
+    color: '#123532',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  driverCoordinateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  driverCoordinateText: {
+    flexGrow: 1,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    color: '#617C79',
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  calloutWrap: {
+    alignItems: 'center',
+    paddingBottom: 6,
+  },
+  calloutCard: {
+    width: 250,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+  },
+  calloutTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  calloutVehicleIcon: {
+    width: 44,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C9E4E0',
+    backgroundColor: '#E7F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  calloutVehicleImage: {
+    width: 32,
+    height: 32,
+    resizeMode: 'contain',
+  },
+  calloutTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  calloutName: {
+    color: '#102A28',
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  calloutMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minWidth: 0,
+  },
+  calloutVehicleText: {
+    color: '#123532',
+    fontSize: 14,
+    fontWeight: '900',
+    flexShrink: 1,
+  },
+  calloutMetaDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: '#CFE4E0',
+  },
+  calloutPlateText: {
+    color: '#123532',
+    fontSize: 14,
+    fontWeight: '900',
+    flexShrink: 1,
+  },
+  calloutFooter: {
+    marginTop: 10,
+    borderRadius: 999,
+    backgroundColor: '#F7FBFA',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  calloutStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#7A908D',
+  },
+  calloutStatusDotOnline: {
+    backgroundColor: teal,
+  },
+  calloutStatusText: {
+    color: '#617C79',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  calloutArrow: {
+    width: 18,
+    height: 18,
+    marginTop: -9,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
+  },
   mapModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(16, 42, 40, 0.52)',
@@ -671,6 +1117,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  mapModalBody: {
+    flex: 1,
+    gap: 12,
+  },
+  mapModalBodyWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
   },
   mapModalShell: {
     flex: 1,
