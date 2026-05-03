@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -33,18 +34,30 @@ type RideStatus = Exclude<TripFilter, 'All'>;
 type AdminTrip = {
   id: string;
   passenger?: {
+    id?: string | null;
     fullName?: string;
     email?: string;
     phoneNumber?: string;
+    profileImageUrl?: string;
+    status?: string;
   } | null;
   driver?: {
+    id?: string | null;
     fullName?: string;
+    email?: string;
     phoneNumber?: string;
+    emergencyContact?: string;
+    profileImageUrl?: string;
+    status?: string;
+    isOnline?: boolean;
     vehicle?: {
       category?: string;
       plateNumber?: string;
       make?: string;
       model?: string;
+      color?: string;
+      year?: number | null;
+      seats?: number | null;
     } | null;
   } | null;
   pickup?: {
@@ -55,8 +68,16 @@ type AdminTrip = {
   };
   vehicleType: string;
   price: number;
+  adminCommission?: number;
+  driverEarnings?: number;
   adminCommissionAmount?: number;
   adminCommissionRate?: number;
+  paymentMethod?: string;
+  promotion?: {
+    code?: string;
+    discountAmount?: number;
+    originalPrice?: number;
+  } | null;
   status: RideStatus;
   canonicalStatus?: string;
   requestedAt: string;
@@ -77,6 +98,7 @@ export default function AdminActivitiesScreen() {
   const [trips, setTrips] = useState<AdminTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedTrip, setSelectedTrip] = useState<AdminTrip | null>(null);
 
   const loadTrips = useCallback(async () => {
     try {
@@ -256,7 +278,7 @@ export default function AdminActivitiesScreen() {
                   <View style={styles.referencePill}>
                     <Ionicons name="pie-chart-outline" size={13} color="#617C79" />
                     <Text style={styles.referenceText}>
-                      Admin {Math.round((trip.adminCommissionRate ?? 0.05) * 100)}%: {formatMoney(trip.adminCommissionAmount ?? 0)}
+                      Admin {Math.round((trip.adminCommissionRate ?? 0.2) * 100)}%: {formatMoney(trip.adminCommissionAmount ?? 0)}
                     </Text>
                   </View>
                   {trip.driver?.vehicle?.plateNumber ? (
@@ -268,16 +290,24 @@ export default function AdminActivitiesScreen() {
                 </View>
 
                 <View style={styles.tripFooter}>
-                  <Text style={styles.tripTime}>{formatTripTime(trip)}</Text>
-                  <Text style={styles.tripId} selectable>
-                    {formatTripId(trip.id)}
-                  </Text>
+                  <View style={styles.tripFooterText}>
+                    <Text style={styles.tripTime}>{formatTripTime(trip)}</Text>
+                    <Text style={styles.tripId} selectable>
+                      {formatTripId(trip.id)}
+                    </Text>
+                  </View>
+                  <Pressable style={styles.detailsButton} onPress={() => setSelectedTrip(trip)}>
+                    <Ionicons name="eye-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.detailsButtonText}>View Details</Text>
+                  </Pressable>
                 </View>
               </View>
             );
           })
         )}
       </RefreshableScrollView>
+
+      <TripDetailsModal trip={selectedTrip} onClose={() => setSelectedTrip(null)} />
     </SafeAreaView>
   );
 }
@@ -303,6 +333,93 @@ function formatTripTime(trip: AdminTrip) {
   }
 
   return `${trip.status} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
+function formatValue(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') {
+    return 'Not available';
+  }
+
+  return String(value);
+}
+
+function DetailRow({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} selectable>
+        {formatValue(value)}
+      </Text>
+    </View>
+  );
+}
+
+function TripDetailsModal({ trip, onClose }: { trip: AdminTrip | null; onClose: () => void }) {
+  const driverVehicle = trip?.driver?.vehicle;
+  const commissionAmount = trip?.adminCommissionAmount ?? trip?.adminCommission ?? 0;
+
+  return (
+    <Modal visible={Boolean(trip)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleWrap}>
+              <Text style={styles.modalEyebrow}>TRIP DETAILS</Text>
+              <Text style={styles.modalTitle}>{trip ? formatTripId(trip.id) : 'Trip Details'}</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <Ionicons name="close" size={20} color="#123532" />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Passenger Details</Text>
+              <DetailRow label="Full Name" value={trip?.passenger?.fullName} />
+              <DetailRow label="Email" value={trip?.passenger?.email} />
+              <DetailRow label="Phone Number" value={trip?.passenger?.phoneNumber} />
+              <DetailRow label="Status" value={trip?.passenger?.status} />
+              <DetailRow label="Passenger ID" value={trip?.passenger?.id} />
+            </View>
+
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Driver Details</Text>
+              <DetailRow label="Full Name" value={trip?.driver?.fullName} />
+              <DetailRow label="Email" value={trip?.driver?.email} />
+              <DetailRow label="Phone Number" value={trip?.driver?.phoneNumber} />
+              <DetailRow label="Emergency Contact" value={trip?.driver?.emergencyContact} />
+              <DetailRow label="Status" value={trip?.driver?.status} />
+              <DetailRow label="Online" value={trip?.driver ? (trip.driver.isOnline ? 'Yes' : 'No') : null} />
+              <DetailRow label="Driver ID" value={trip?.driver?.id} />
+            </View>
+
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Vehicle Details</Text>
+              <DetailRow label="Category" value={driverVehicle?.category ?? trip?.vehicleType} />
+              <DetailRow label="Plate Number" value={driverVehicle?.plateNumber} />
+              <DetailRow label="Make" value={driverVehicle?.make} />
+              <DetailRow label="Model" value={driverVehicle?.model} />
+              <DetailRow label="Color" value={driverVehicle?.color} />
+              <DetailRow label="Year" value={driverVehicle?.year} />
+              <DetailRow label="Seats" value={driverVehicle?.seats} />
+            </View>
+
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Trip & Payment</Text>
+              <DetailRow label="Pickup" value={trip?.pickup?.name} />
+              <DetailRow label="Dropoff" value={trip?.dropoff?.name} />
+              <DetailRow label="Status" value={trip?.status} />
+              <DetailRow label="Payment Method" value={trip?.paymentMethod} />
+              <DetailRow label="Trip Price" value={trip ? formatMoney(trip.price) : null} />
+              <DetailRow label="Admin Commission" value={formatMoney(commissionAmount)} />
+              <DetailRow label="Driver Earnings" value={trip?.driverEarnings !== undefined ? formatMoney(trip.driverEarnings) : null} />
+              <DetailRow label="Promo Code" value={trip?.promotion?.code} />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -634,6 +751,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  tripFooterText: {
+    flex: 1,
+    minWidth: 0,
+  },
   tripTime: {
     color: '#617C79',
     fontSize: 11,
@@ -643,5 +764,104 @@ const styles = StyleSheet.create({
     color: teal,
     fontSize: 11,
     fontWeight: '800',
+  },
+  detailsButton: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: teal,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  detailsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 42, 40, 0.38)',
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  modalCard: {
+    maxHeight: '86%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E3EFED',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalEyebrow: {
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  modalTitle: {
+    color: '#123532',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F4F8F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  modalContent: {
+    padding: 14,
+    gap: 12,
+  },
+  modalSection: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#F7FBFA',
+    padding: 12,
+  },
+  modalSectionTitle: {
+    color: '#123532',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  detailRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#E3EFED',
+    paddingVertical: 8,
+    gap: 4,
+  },
+  detailLabel: {
+    color: '#617C79',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailValue: {
+    color: '#123532',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
 });

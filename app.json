@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "nexgo",
+    "name": "NexGO Admin",
     "slug": "nexgo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/Admin App Icon.png",
     "scheme": "nexgo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

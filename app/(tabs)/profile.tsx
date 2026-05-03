@@ -83,16 +83,9 @@ const PROFILE_SECTIONS: ProfileSection[] = [
   },
 ];
 
-const PROFILE_METRICS = [
-  { label: 'Approvals', value: '184', icon: 'checkmark-done-outline' as const },
-  { label: 'Drivers Live', value: '326', icon: 'car-sport-outline' as const },
-  { label: 'Escalations', value: '6', icon: 'alert-circle-outline' as const },
-];
-
 export default function AdminProfileScreen() {
   const { admin, logout, refreshSession } = useAdminAuth();
   const [freshAdmin, setFreshAdmin] = useState<typeof admin>(null);
-  const [metrics, setMetrics] = useState({ approvals: '0', driversLive: '0', escalations: '0' });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -101,21 +94,12 @@ export default function AdminProfileScreen() {
       const loadProfile = async () => {
         try {
           await refreshSession();
-          const [profileResponse, analyticsResponse] = await Promise.all([
-            authFetch(`${API_BASE_URL}/admin/profile`),
-            authFetch(`${API_BASE_URL}/admin/dashboard/analytics`)
-          ]);
+          const profileResponse = await authFetch(`${API_BASE_URL}/admin/profile`);
           
           const profileData = await parseApiResponse<{ adminProfile: NonNullable<typeof admin> }>(profileResponse);
-          const analyticsData = await parseApiResponse<{ approvals?: number; driversLive?: number; escalations?: number }>(analyticsResponse);
 
           if (isActive) {
             setFreshAdmin(profileData.adminProfile);
-            setMetrics({
-              approvals: String(analyticsData.approvals ?? 0),
-              driversLive: String(analyticsData.driversLive ?? 0),
-              escalations: String(analyticsData.escalations ?? 0),
-            });
           }
         } catch {
           if (isActive) {
@@ -166,22 +150,6 @@ export default function AdminProfileScreen() {
             <Text style={[styles.profileName, { color: palette.primaryText }]}>{adminProfile.fullName}</Text>
             <Text style={[styles.memberCaption, { color: palette.secondaryText }]}>{adminProfile.role}</Text>
             <Text style={[styles.roleScope, { color: palette.secondaryText }]}>{adminProfile.scope}</Text>
-          </View>
-
-          <View style={styles.metricsRow}>
-            {[
-              { label: 'Approvals', value: metrics.approvals, icon: 'checkmark-done-outline' as const },
-              { label: 'Drivers Live', value: metrics.driversLive, icon: 'car-sport-outline' as const },
-              { label: 'Escalations', value: metrics.escalations, icon: 'alert-circle-outline' as const },
-            ].map((metric) => (
-              <View
-                key={metric.label}
-                style={[styles.metricItem, { backgroundColor: palette.elevatedCard, borderColor: palette.border }]}>
-                <Ionicons name={metric.icon} size={16} color={palette.accent} />
-                <Text style={[styles.metricValue, { color: palette.primaryText }]}>{metric.value}</Text>
-                <Text style={[styles.metricLabel, { color: palette.secondaryText }]}>{metric.label}</Text>
-              </View>
-            ))}
           </View>
         </View>
 
@@ -315,29 +283,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'center',
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
-  },
-  metricItem: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
-  metricValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 4,
-    marginBottom: 1,
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   quickActionButton: {
     borderRadius: 14,
