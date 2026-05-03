@@ -23,6 +23,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { ZoomableDocumentView } from '@/components/ZoomableDocumentView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
@@ -1651,32 +1652,34 @@ function DriverDocsModal({
                                 style={[styles.pdfPageCard, isFailedPage ? styles.pdfPageCardHidden : null]}
                               >
                                 <Text style={styles.pdfPageLabel}>Page {page.page}</Text>
-                                <Image
-                                  source={{ uri: page.uri }}
-                                  style={styles.pdfPageImage}
-                                  contentFit="contain"
-                                  transition={160}
-                                  onLoad={() => {
-                                    setPdfPreviewLoaded((count) => {
-                                      const nextCount = count + 1;
-                                      if (nextCount > 0) {
-                                        setPdfPreviewLoading(false);
-                                        setPdfPreviewError(null);
-                                      }
-                                      return nextCount;
-                                    });
-                                  }}
-                                  onError={() => {
-                                    setPdfPreviewFailedPages((current) => {
-                                      const nextPages = current.includes(page.page) ? current : [...current, page.page];
-                                      if (nextPages.length >= previewPdfPages.length && pdfPreviewLoaded === 0) {
-                                        setPdfPreviewLoading(false);
-                                        setPdfPreviewError('Unable to generate page previews for this PDF.');
-                                      }
-                                      return nextPages;
-                                    });
-                                  }}
-                                />
+                                <ZoomableDocumentView>
+                                  <Image
+                                    source={{ uri: page.uri }}
+                                    style={styles.pdfPageImage}
+                                    contentFit="contain"
+                                    transition={160}
+                                    onLoad={() => {
+                                      setPdfPreviewLoaded((count) => {
+                                        const nextCount = count + 1;
+                                        if (nextCount > 0) {
+                                          setPdfPreviewLoading(false);
+                                          setPdfPreviewError(null);
+                                        }
+                                        return nextCount;
+                                      });
+                                    }}
+                                    onError={() => {
+                                      setPdfPreviewFailedPages((current) => {
+                                        const nextPages = current.includes(page.page) ? current : [...current, page.page];
+                                        if (nextPages.length >= previewPdfPages.length && pdfPreviewLoaded === 0) {
+                                          setPdfPreviewLoading(false);
+                                          setPdfPreviewError('Unable to generate page previews for this PDF.');
+                                        }
+                                        return nextPages;
+                                      });
+                                    }}
+                                  />
+                                </ZoomableDocumentView>
                               </View>
                             );
                           })}
@@ -1741,11 +1744,13 @@ function DriverDocsModal({
                       </View>
                     </View>
                   ) : (
-                    <Image
-                      source={{ uri: previewDoc.fileUrl }}
-                      style={styles.fullScreenImage}
-                      contentFit="contain"
-                    />
+                    <ZoomableDocumentView style={styles.fullScreenImage}>
+                      <Image
+                        source={{ uri: previewDoc.fileUrl }}
+                        style={styles.fullScreenImage}
+                        contentFit="contain"
+                      />
+                    </ZoomableDocumentView>
                   )
                 ) : (
                   <View style={styles.docEmptyState}>

@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Keyboard, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { AdminAuthProvider } from '@/context/admin-auth-context';
@@ -44,23 +45,25 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AdminAuthProvider>
-        <KeyboardDismissView>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="profile/admin-details" options={{ headerShown: false }} />
-            <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
-            <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
-            <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
-            <Stack.Screen name="support-ticket/[id]" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </KeyboardDismissView>
-      </AdminAuthProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AdminAuthProvider>
+          <KeyboardDismissView>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="profile/admin-details" options={{ headerShown: false }} />
+              <Stack.Screen name="profile/promotions" options={{ headerShown: false }} />
+              <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
+              <Stack.Screen name="profile/account-security" options={{ headerShown: false }} />
+              <Stack.Screen name="support-ticket/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </KeyboardDismissView>
+        </AdminAuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
