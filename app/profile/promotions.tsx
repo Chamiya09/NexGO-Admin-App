@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,6 +20,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
@@ -123,6 +123,8 @@ export default function PromotionManagementScreen() {
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
   const [isSavingPromotion, setIsSavingPromotion] = useState(false);
   const [updatingCampaignId, setUpdatingCampaignId] = useState<string | null>(null);
+  const [campaignPendingDelete, setCampaignPendingDelete] = useState<PromotionCampaign | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [visibleCalendarDate, setVisibleCalendarDate] = useState(new Date());
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -344,16 +346,19 @@ export default function PromotionManagementScreen() {
   };
 
   const confirmDeleteCampaign = (campaign: PromotionCampaign) => {
-    Alert.alert('Delete promotion', `Do you want to delete ${campaign.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void deleteCampaign(campaign);
-        },
-      },
-    ]);
+    setCampaignPendingDelete(campaign);
+  };
+
+  const handleConfirmDeleteCampaign = async () => {
+    if (!campaignPendingDelete) return;
+
+    setDeletingCampaign(true);
+    try {
+      await deleteCampaign(campaignPendingDelete);
+      setCampaignPendingDelete(null);
+    } finally {
+      setDeletingCampaign(false);
+    }
   };
 
   const toggleCampaign = async (campaign: PromotionCampaign) => {
@@ -680,6 +685,19 @@ export default function PromotionManagementScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+      <ConfirmDialog
+        visible={Boolean(campaignPendingDelete)}
+        title="Delete promotion"
+        message={`Do you want to delete ${campaignPendingDelete?.name || 'this promotion'}?`}
+        confirmLabel="Delete"
+        destructive
+        loading={deletingCampaign}
+        icon="trash-outline"
+        onCancel={() => {
+          if (!deletingCampaign) setCampaignPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteCampaign}
+      />
     </SafeAreaView>
   );
 }

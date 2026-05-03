@@ -23,6 +23,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ZoomableDocumentView } from '@/components/ZoomableDocumentView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
@@ -95,6 +96,14 @@ type NewAdminForm = {
   password: string;
 };
 
+type ConfirmState = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onConfirm: () => Promise<void> | void;
+} | null;
+
 const emptyNewAdminForm: NewAdminForm = {
   fullName: '',
   email: '',
@@ -132,6 +141,8 @@ export default function AdminUsersScreen() {
   const [selectedProfileDriver, setSelectedProfileDriver] = useState<DriverUser | null>(null);
   const [passengerProfileVisible, setPassengerProfileVisible] = useState(false);
   const [selectedPassenger, setSelectedPassenger] = useState<PassengerUser | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const loadManagementData = useCallback(async () => {
     setLoading(true);
@@ -233,12 +244,12 @@ export default function AdminUsersScreen() {
       ? 'This driver will be allowed to go online again.'
       : 'This driver will be blocked from accepting new rides.';
 
-    Alert.alert(confirmTitle, confirmMessage, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: isSuspended ? 'Reinstate' : 'Suspend',
-        style: isSuspended ? 'default' : 'destructive',
-        onPress: async () => {
+    setConfirmState({
+      title: confirmTitle,
+      message: confirmMessage,
+      confirmLabel: isSuspended ? 'Reinstate' : 'Suspend',
+      destructive: !isSuspended,
+      onConfirm: async () => {
           try {
             setErrorMessage(null);
             const res = await authFetch(`${API_BASE_URL}/driver-auth/drivers/${driver.id}/status`, {
@@ -271,9 +282,8 @@ export default function AdminUsersScreen() {
             setErrorMessage(message);
             Alert.alert('Request failed', message);
           }
-        },
       },
-    ]);
+    });
   }, []);
 
   const handleToggleSuspendPassenger = useCallback((passenger: PassengerUser) => {
@@ -284,12 +294,12 @@ export default function AdminUsersScreen() {
       ? 'This passenger will be allowed to request rides again.'
       : 'This passenger will be blocked from requesting new rides.';
 
-    Alert.alert(confirmTitle, confirmMessage, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: isSuspended ? 'Unsuspend' : 'Suspend',
-        style: isSuspended ? 'default' : 'destructive',
-        onPress: async () => {
+    setConfirmState({
+      title: confirmTitle,
+      message: confirmMessage,
+      confirmLabel: isSuspended ? 'Unsuspend' : 'Suspend',
+      destructive: !isSuspended,
+      onConfirm: async () => {
           try {
             setErrorMessage(null);
             const res = await authFetch(`${API_BASE_URL}/auth/users/${passenger.id}/status`, {
@@ -316,9 +326,8 @@ export default function AdminUsersScreen() {
             setErrorMessage(message);
             Alert.alert('Request failed', message);
           }
-        },
       },
-    ]);
+    });
   }, []);
 
   const handleViewPassenger = useCallback((passenger: PassengerUser) => {
@@ -769,6 +778,29 @@ export default function AdminUsersScreen() {
         onChange={handleNewAdminChange}
         onCreate={createAdminAccount}
         onClose={closeCreateAdminModal}
+      />
+      <ConfirmDialog
+        visible={Boolean(confirmState)}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel || 'Confirm'}
+        destructive={confirmState?.destructive}
+        loading={confirmLoading}
+        onCancel={() => {
+          if (!confirmLoading) {
+            setConfirmState(null);
+          }
+        }}
+        onConfirm={async () => {
+          if (!confirmState) return;
+          setConfirmLoading(true);
+          try {
+            await confirmState.onConfirm();
+            setConfirmState(null);
+          } finally {
+            setConfirmLoading(false);
+          }
+        }}
       />
       <DriverDocsModal
         visible={docModalVisible}
