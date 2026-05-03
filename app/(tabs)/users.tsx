@@ -26,6 +26,7 @@ import RefreshableScrollView from '@/components/RefreshableScrollView';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ZoomableDocumentView } from '@/components/ZoomableDocumentView';
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
+import { useResponsiveLayout } from '@/lib/responsive';
 
 const teal = '#008080';
 const PDF_PREVIEW_PAGE_LIMIT = 12;
@@ -117,6 +118,7 @@ const emptyNewAdminForm: NewAdminForm = {
 
 export default function AdminUsersScreen() {
   const { width } = useWindowDimensions();
+  const responsive = useResponsiveLayout();
   const isWide = width >= 1100;
   const [activeTab, setActiveTab] = useState<'passengers' | 'drivers' | 'admins'>('drivers');
   const [passengerUsers, setPassengerUsers] = useState<PassengerUser[]>([]);
@@ -443,7 +445,7 @@ export default function AdminUsersScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <RefreshableScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingHorizontal: responsive.screenPadding }]}
         showsVerticalScrollIndicator={false}
         onRefreshPage={loadManagementData}>
         <View style={styles.topBar}>
@@ -454,7 +456,7 @@ export default function AdminUsersScreen() {
           <View style={styles.topBarSpacer} />
         </View>
 
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, { padding: responsive.cardPadding }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroIcon}>
               <Ionicons name="people-outline" size={24} color={teal} />
@@ -2026,7 +2028,7 @@ const styles = StyleSheet.create({
   },
   docActionGroupRow: {
     flexDirection: 'row',
-    flexWrap: 'nowrap',
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
     alignItems: 'center',
     flexShrink: 0,
@@ -2333,7 +2335,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
   },
   container: {
-    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
   },
@@ -2391,7 +2392,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 96,
     height: 36,
     borderRadius: 999,
     borderWidth: 1,
@@ -2502,8 +2503,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
     marginBottom: 12,
   },
   heroTopRow: {
@@ -2655,7 +2654,7 @@ const styles = StyleSheet.create({
   driverStatCard: {
     flex: 1,
     flexBasis: 140,
-    minWidth: 132,
+    minWidth: 118,
     minHeight: 82,
     borderRadius: 14,
     borderWidth: 1,
@@ -3329,11 +3328,13 @@ const styles = StyleSheet.create({
   },
   modalMetaGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     marginBottom: 14,
   },
   modalMetaPill: {
     flex: 1,
+    minWidth: 120,
     borderRadius: 14,
     backgroundColor: '#F7FBFA',
     borderWidth: 1,
