@@ -509,12 +509,12 @@ export default function AdminUsersScreen() {
           </View>
         ) : activeTab === 'admins' ? (
           <View style={styles.panelCard}>
-            <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
+            <View style={styles.panelHeader}>
               <View style={styles.adminHeaderTitleWrap}>
                 <Text style={styles.panelEyebrow}>ADMIN ACCOUNTS</Text>
                 <Text style={styles.panelTitle}>Admin management</Text>
               </View>
-              <View style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 1 }}>
+              <View style={styles.adminPanelActions}>
                 <View style={styles.panelBadge}>
                   <Text style={styles.panelBadgeText}>{adminUsers.length} admins</Text>
                 </View>
@@ -553,7 +553,7 @@ export default function AdminUsersScreen() {
         ) : activeTab === 'drivers' ? (
           <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
             <View style={[styles.panelCard, isWide ? styles.mainPanel : null]}>
-              <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
+              <View style={styles.panelHeader}>
                 <View style={styles.adminHeaderTitleWrap}>
                   <Text style={styles.panelEyebrow}>DRIVER MANAGEMENT</Text>
                   <Text style={styles.panelTitle}>Fleet overview & action center</Text>
@@ -684,7 +684,7 @@ export default function AdminUsersScreen() {
         ) : (
           <View style={[styles.splitLayout, isWide ? styles.splitLayoutWide : null]}>
             <View style={[styles.panelCard, isWide ? styles.mainPanel : null]}>
-              <View style={[styles.panelHeader, { alignItems: 'flex-start', flexWrap: 'nowrap' }]}>
+              <View style={styles.panelHeader}>
                 <View style={styles.adminHeaderTitleWrap}>
                   <Text style={styles.panelEyebrow}>PASSENGER MANAGEMENT</Text>
                   <Text style={styles.panelTitle}>Passenger overview & actions</Text>
@@ -2342,25 +2342,25 @@ const styles = StyleSheet.create({
   },
   tabRow: {
     flexDirection: 'row',
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
-    padding: 8,
+    padding: 6,
     marginBottom: 12,
-    gap: 7,
+    gap: 8,
     flexWrap: 'nowrap',
-    paddingRight: 12,
   },
   tabButton: {
-    minWidth: 120,
-    minHeight: 34,
+    flex: 1,
+    minWidth: 0,
+    height: 36,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#F7FBFA',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2429,6 +2429,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
     marginBottom: 16,
   },
   panelEyebrow: {
@@ -2442,12 +2443,17 @@ const styles = StyleSheet.create({
     color: '#102A28',
     fontSize: 20,
     fontWeight: '800',
+    lineHeight: 25,
   },
   panelBadge: {
+    minHeight: 32,
     borderRadius: 999,
     backgroundColor: '#E7F5F3',
     paddingHorizontal: 10,
     paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   panelBadgeText: {
     color: teal,
@@ -2610,14 +2616,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   driverStatCard: {
-    flexGrow: 1,
-    flexBasis: 150,
+    flex: 1,
+    flexBasis: 140,
+    minWidth: 132,
+    minHeight: 82,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#F7FBFA',
     padding: 12,
     gap: 6,
+    justifyContent: 'center',
   },
   driverStatLabel: {
     color: '#7A908D',
@@ -2635,6 +2644,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   driverSearchWrap: {
+    minHeight: 46,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#D9E9E6',
@@ -2647,6 +2657,7 @@ const styles = StyleSheet.create({
   },
   driverSearchInput: {
     flex: 1,
+    minWidth: 0,
     color: '#102A28',
     fontSize: 13,
     fontWeight: '600',
@@ -2655,14 +2666,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    alignItems: 'center',
   },
   driverFilterChip: {
+    minHeight: 34,
+    minWidth: 82,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#D9E9E6',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   driverFilterChipActive: {
     backgroundColor: '#E7F5F3',
@@ -2687,8 +2703,9 @@ const styles = StyleSheet.create({
   },
   driverCardHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
   },
   driverIdentity: {
@@ -2722,9 +2739,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   driverStatusPill: {
+    minHeight: 30,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   driverStatusText: {
     fontSize: 11,
@@ -2760,8 +2781,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   driverMetaItem: {
-    flexGrow: 1,
-    flexBasis: 220,
+    flex: 1,
+    flexBasis: 190,
+    minWidth: 180,
     minHeight: 54,
     borderRadius: 14,
     borderWidth: 1,
@@ -2793,10 +2815,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    alignItems: 'center',
   },
   driverActionButton: {
+    flexGrow: 1,
+    minWidth: 104,
+    minHeight: 38,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -2824,6 +2851,14 @@ const styles = StyleSheet.create({
   adminHeaderTitleWrap: {
     flex: 1,
     minWidth: 190,
+  },
+  adminPanelActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 8,
+    flexShrink: 1,
   },
   adminHeaderActions: {
     flexDirection: 'row',
@@ -3100,6 +3135,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
   },
   passengerTextWrap: {
@@ -3125,7 +3161,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    flexShrink: 0,
   },
   passengerStatusDot: {
     width: 7,
@@ -3144,8 +3182,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   passengerMetaItem: {
-    flexGrow: 1,
-    flexBasis: 220,
+    flex: 1,
+    flexBasis: 190,
+    minWidth: 180,
     minHeight: 54,
     borderRadius: 14,
     borderWidth: 1,
@@ -3179,7 +3218,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     flexWrap: 'wrap',
     gap: 10,
   },
@@ -3431,7 +3470,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   suspendButton: {
-    alignSelf: 'flex-start',
+    flexGrow: 1,
+    minWidth: 120,
     minHeight: 36,
     borderRadius: 12,
     borderWidth: 1,
@@ -3454,9 +3494,14 @@ const styles = StyleSheet.create({
   passengerActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
     gap: 8,
+    flex: 1,
   },
   viewButton: {
+    flexGrow: 1,
+    minWidth: 120,
     minHeight: 34,
     borderRadius: 10,
     borderWidth: 1,
