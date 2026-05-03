@@ -6,6 +6,8 @@ import {
   Text,
   View,
   Platform,
+  Linking,
+  Alert,
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -24,6 +26,7 @@ type ProfileSection = {
   icon: keyof typeof Ionicons.glyphMap;
   badge?: string;
   route?: '/profile/admin-details' | '/profile/promotions' | '/profile/reviews' | '/profile/account-security' | '/users';
+  url?: string;
 };
 
 const palette = {
@@ -71,6 +74,12 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     subtitle: 'Manage password changes and protect admin sign-in security',
     icon: 'shield-checkmark-outline',
     route: '/profile/account-security',
+  },
+  {
+    title: 'Open Admin Workspace',
+    subtitle: 'Access the full web dashboard for advanced operations',
+    icon: 'desktop-outline',
+    url: 'https://admin.nexgo.lk',
   },
 ];
 
@@ -174,11 +183,6 @@ export default function AdminProfileScreen() {
               </View>
             ))}
           </View>
-
-          <Pressable style={[styles.quickActionButton, { backgroundColor: palette.accent }]}>
-            <Text style={styles.quickActionText}>Open Admin Workspace</Text>
-            <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
-          </Pressable>
         </View>
 
         <View style={styles.sectionHeadingWrap}>
@@ -195,6 +199,10 @@ export default function AdminProfileScreen() {
             onPress={() => {
               if (section.route) {
                 router.push(section.route);
+              } else if (section.url) {
+                Linking.openURL(section.url).catch(() => {
+                  Alert.alert('Unavailable', 'Could not open the workspace URL on this device.');
+                });
               }
             }}>
             <View style={styles.settingLeft}>
