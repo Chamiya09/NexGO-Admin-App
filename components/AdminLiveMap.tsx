@@ -254,6 +254,7 @@ export function AdminLiveMap() {
                 loadingBackgroundColor="#E8F0EF"
                 loadingIndicatorColor={teal}
                 onMapReady={() => setIsDashboardMapReady(true)}
+                onPress={() => setSelectedDriverId(null)}
                 showsUserLocation={false}
                 showsMyLocationButton={false}
                 scrollEnabled
@@ -272,7 +273,10 @@ export function AdminLiveMap() {
                     <Marker
                       key={String(driver.driverId || driver.id)}
                       coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      onPress={() => setSelectedDriverId(String(driver.driverId || driver.id))}>
+                      onPress={(event) => {
+                        event.stopPropagation?.();
+                        setSelectedDriverId(String(driver.driverId || driver.id));
+                      }}>
                       <Image
                         source={getVehicleMarkerSource(vehicleCategory)}
                         style={[
@@ -349,6 +353,7 @@ export function AdminLiveMap() {
                   loadingBackgroundColor="#E8F0EF"
                   loadingIndicatorColor={teal}
                   onMapReady={() => setIsPopupMapReady(true)}
+                  onPress={() => setSelectedDriverId(null)}
                   showsUserLocation={false}
                   showsMyLocationButton={false}
                   scrollEnabled
@@ -367,7 +372,10 @@ export function AdminLiveMap() {
                       <Marker
                         key={String(driver.driverId || driver.id)}
                         coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                        onPress={() => setSelectedDriverId(String(driver.driverId || driver.id))}>
+                        onPress={(event) => {
+                          event.stopPropagation?.();
+                          setSelectedDriverId(String(driver.driverId || driver.id));
+                        }}>
                         <Image
                           source={getVehicleMarkerSource(vehicleCategory)}
                           style={[
