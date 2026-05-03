@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   ImageSourcePropType,
   Modal,
@@ -250,9 +252,7 @@ export function AdminLiveMap() {
                 provider={PROVIDER_DEFAULT}
                 initialRegion={mapRegion}
                 mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
-                loadingEnabled
-                loadingBackgroundColor="#E8F0EF"
-                loadingIndicatorColor={teal}
+                loadingEnabled={false}
                 onMapReady={() => setIsDashboardMapReady(true)}
                 onPress={() => setSelectedDriverId(null)}
                 showsUserLocation={false}
@@ -294,7 +294,7 @@ export function AdminLiveMap() {
               </MapView>
               {!isDashboardMapReady ? (
                 <View style={styles.mapLoadingOverlay}>
-                  <ActivityIndicator size="small" color={teal} />
+                  <MapLoadingEffect />
                 </View>
               ) : null}
             </View>
@@ -349,9 +349,7 @@ export function AdminLiveMap() {
                   provider={PROVIDER_DEFAULT}
                   initialRegion={mapRegion}
                   mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
-                  loadingEnabled
-                  loadingBackgroundColor="#E8F0EF"
-                  loadingIndicatorColor={teal}
+                  loadingEnabled={false}
                   onMapReady={() => setIsPopupMapReady(true)}
                   onPress={() => setSelectedDriverId(null)}
                   showsUserLocation={false}
@@ -393,7 +391,7 @@ export function AdminLiveMap() {
                 </MapView>
                 {!isPopupMapReady ? (
                   <View style={styles.mapLoadingOverlay}>
-                    <ActivityIndicator size="small" color={teal} />
+                    <MapLoadingEffect />
                   </View>
                 ) : null}
               </View>
@@ -606,6 +604,92 @@ function DriverMapCallout({ driver }: { driver: DriverLocationRecord }) {
   );
 }
 
+function MapLoadingEffect() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    const sweepLoop = Animated.loop(
+      Animated.timing(sweep, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      })
+    );
+
+    pulseLoop.start();
+    sweepLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      sweepLoop.stop();
+    };
+  }, [pulse, sweep]);
+
+  const pulseScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.78, 1.55],
+  });
+  const pulseOpacity = pulse.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0.58, 0.22, 0],
+  });
+  const sweepTranslate = sweep.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-110, 110],
+  });
+
+  return (
+    <View style={styles.mapLoaderWrap} pointerEvents="none">
+      <View style={styles.mapLoaderGrid}>
+        <View style={[styles.mapLoaderRoad, styles.mapLoaderRoadOne]} />
+        <View style={[styles.mapLoaderRoad, styles.mapLoaderRoadTwo]} />
+        <View style={[styles.mapLoaderRoad, styles.mapLoaderRoadThree]} />
+        <View style={styles.mapLoaderPin}>
+          <Animated.View
+            style={[
+              styles.mapLoaderPulse,
+              {
+                opacity: pulseOpacity,
+                transform: [{ scale: pulseScale }],
+              },
+            ]}
+          />
+          <View style={styles.mapLoaderPinCore}>
+            <Ionicons name="navigate" size={22} color="#FFFFFF" />
+          </View>
+        </View>
+        <Animated.View
+          style={[
+            styles.mapLoaderSweep,
+            {
+              transform: [{ translateX: sweepTranslate }, { rotate: '-18deg' }],
+            },
+          ]}
+        />
+      </View>
+      <Text style={styles.mapLoaderText}>Preparing live map...</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   cardEyebrow: {
     color: teal,
@@ -736,6 +820,88 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F0EF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mapLoaderWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  mapLoaderGrid: {
+    width: 132,
+    height: 92,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#C9E4E0',
+    backgroundColor: '#F7FBFA',
+    position: 'relative',
+  },
+  mapLoaderRoad: {
+    position: 'absolute',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#CFE4E0',
+    opacity: 0.95,
+  },
+  mapLoaderRoadOne: {
+    width: 118,
+    top: 20,
+    left: -10,
+    transform: [{ rotate: '-18deg' }],
+  },
+  mapLoaderRoadTwo: {
+    width: 138,
+    top: 50,
+    left: 8,
+    transform: [{ rotate: '14deg' }],
+  },
+  mapLoaderRoadThree: {
+    width: 84,
+    top: 72,
+    left: -6,
+    transform: [{ rotate: '-8deg' }],
+  },
+  mapLoaderPin: {
+    position: 'absolute',
+    top: 26,
+    left: 48,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapLoaderPulse: {
+    position: 'absolute',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: teal,
+  },
+  mapLoaderPinCore: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#008080',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  mapLoaderSweep: {
+    position: 'absolute',
+    top: -18,
+    left: 54,
+    width: 20,
+    height: 132,
+    backgroundColor: 'rgba(255, 255, 255, 0.56)',
+  },
+  mapLoaderText: {
+    color: '#123532',
+    fontSize: 12,
+    fontWeight: '800',
   },
   vehicleMarkerImage: {
     width: 30,
