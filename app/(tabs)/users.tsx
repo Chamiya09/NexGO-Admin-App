@@ -33,6 +33,7 @@ const PDF_PREVIEW_PAGE_LIMIT = 12;
 
 type PassengerUser = {
   id: string;
+  readableId?: string;
   fullName: string;
   email: string;
   phoneNumber: string;
@@ -55,6 +56,7 @@ const passengerFilters: Array<{ label: string; value: PassengerFilter }> = [
 
 type DriverUser = {
   id: string;
+  readableId?: string;
   fullName: string;
   email: string;
   phoneNumber: string;
@@ -76,6 +78,7 @@ type DriverUser = {
 
 type AdminUser = {
   id: string;
+  readableId?: string;
   fullName: string;
   email: string;
   phoneNumber: string;
@@ -646,6 +649,9 @@ export default function AdminUsersScreen() {
                       <Text style={styles.reviewDetailLine} numberOfLines={1}>
                         {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
                       </Text>
+                      <Text style={styles.readableIdText} numberOfLines={1}>
+                        Admin ID {getReadableId(admin, 'ADM')}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.adminAccountActions}>
@@ -744,7 +750,7 @@ export default function AdminUsersScreen() {
                   </View>
 
                   <View style={styles.driverMetaRow}>
-                    <DriverMetaItem icon="finger-print-outline" label="Driver ID" value={formatDriverId(driver.id)} />
+                    <DriverMetaItem icon="finger-print-outline" label="Driver ID" value={getReadableId(driver, 'DRV')} />
                     <DriverMetaItem icon="car-outline" label="Vehicle" value={formatVehicle(driver.vehicle)} />
                     <DriverMetaItem
                       icon="pulse-outline"
@@ -1001,7 +1007,7 @@ function PassengerAccountCard({
       </View>
 
       <View style={styles.passengerMetaGrid}>
-        <PassengerMetaItem icon="finger-print-outline" label="Passenger ID" value={formatShortId(user.id)} />
+        <PassengerMetaItem icon="finger-print-outline" label="Passenger ID" value={getReadableId(user, 'PAS')} />
         <PassengerMetaItem icon="call-outline" label="Phone" value={user.phoneNumber || 'No phone'} />
       </View>
 
@@ -1073,6 +1079,7 @@ function PassengerProfileModal({
 
           <View style={styles.detailGrid}>
             <DetailRow label="Name" value={passenger.fullName} />
+            <DetailRow label="Passenger ID" value={getReadableId(passenger, 'PAS')} />
             <DetailRow label="Email" value={passenger.email} />
             <DetailRow label="Phone" value={passenger.phoneNumber || 'No phone'} />
           </View>
@@ -1448,20 +1455,17 @@ function formatVehicle(vehicle: DriverUser['vehicle']) {
   return [vehicle.category, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.plateNumber || 'Vehicle added';
 }
 
-function formatDriverId(id: string) {
-  if (!id) {
-    return 'Driver';
+function getReadableId(entity: { id: string; readableId?: string }, fallbackPrefix: string) {
+  if (entity.readableId) {
+    return entity.readableId;
   }
 
-  return id.length > 10 ? `${id.slice(0, 10)}...` : id;
-}
-
-function formatShortId(id: string) {
-  if (!id) {
-    return 'Passenger';
+  const rawId = String(entity.id || '');
+  if (!rawId) {
+    return `${fallbackPrefix}-PENDING`;
   }
 
-  return id.length > 12 ? `${id.slice(0, 12)}...` : id;
+  return `${fallbackPrefix}-${rawId.slice(-6).toUpperCase()}`;
 }
 
 type NormalizedDriverStatus = 'active' | 'pending' | 'suspended' | 'inactive';
@@ -3264,6 +3268,20 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '600',
     marginTop: 4,
+  },
+  readableIdText: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    color: teal,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   reviewStatusPill: {
     alignSelf: 'flex-start',
