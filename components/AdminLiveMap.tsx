@@ -6,7 +6,6 @@ import {
   Image,
   ImageSourcePropType,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -14,7 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Callout, Marker, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
+import { CustomOsmMap } from './CustomOsmMap.web';
 
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
@@ -60,7 +59,6 @@ export function AdminLiveMap() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const isMedium = width >= 720;
-  const mapRef = useRef<MapView | null>(null);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
   const [driverLocations, setDriverLocations] = useState<Record<string, DriverLocation>>({});
   const [loadingDrivers, setLoadingDrivers] = useState(true);
@@ -195,10 +193,23 @@ export function AdminLiveMap() {
     [latestDriverSignal, trackedDrivers.length]
   );
 
-  useEffect(() => {
-    if (!latestDriverSignal) return;
-    mapRef.current?.animateToRegion(mapRegion, 450);
-  }, [latestDriverSignal, mapRegion]);
+  const mapMarkers = useMemo(
+    () =>
+      visibleMapDrivers.map((driver) => {
+        const vehicleCategory = getVehicleCategory(driver);
+        return {
+          id: String(driver.driverId || driver.id),
+          coordinate: { latitude: driver.latitude, longitude: driver.longitude },
+          color: getVehicleMarkerColor(vehicleCategory),
+          iconUrl: getVehicleMarkerUri(vehicleCategory),
+          label: driver.fullName || 'Driver',
+          heading: driver.heading,
+          isOnline: driver.isOnline,
+          selected: selectedDriverId === String(driver.driverId || driver.id),
+        };
+      }),
+    [selectedDriverId, visibleMapDrivers]
+  );
 
   return (
     <>
@@ -246,52 +257,14 @@ export function AdminLiveMap() {
         ) : (
           <View style={[styles.liveMapBody, isMedium ? styles.liveMapBodyWide : null]}>
             <View style={styles.liveMapShell}>
-              <MapView
-                ref={mapRef}
+              <CustomOsmMap
                 style={styles.liveMap}
-                provider={PROVIDER_DEFAULT}
-                initialRegion={mapRegion}
-                mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
-                loadingEnabled={false}
+                region={mapRegion}
+                markers={mapMarkers}
                 onMapReady={() => setIsDashboardMapReady(true)}
                 onPress={() => setSelectedDriverId(null)}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                scrollEnabled
-                zoomEnabled
-                rotateEnabled
-                pitchEnabled>
-                <UrlTile
-                  urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  maximumZ={19}
-                  flipY={false}
-                />
-                {visibleMapDrivers.map((driver) => {
-                  const vehicleCategory = getVehicleCategory(driver);
-
-                  return (
-                    <Marker
-                      key={String(driver.driverId || driver.id)}
-                      coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                      onPress={(event) => {
-                        event.stopPropagation?.();
-                        setSelectedDriverId(String(driver.driverId || driver.id));
-                      }}>
-                      <Image
-                        source={getVehicleMarkerSource(vehicleCategory)}
-                        style={[
-                          styles.vehicleMarkerImage,
-                          !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
-                          getVehicleHeadingStyle(driver.heading),
-                        ]}
-                      />
-                      <Callout tooltip>
-                        <DriverMapCallout driver={driver} />
-                      </Callout>
-                    </Marker>
-                  );
-                })}
-              </MapView>
+                onMarkerPress={(id) => setSelectedDriverId(id)}
+              />
               {!isDashboardMapReady ? (
                 <View style={styles.mapLoadingOverlay}>
                   <MapLoadingEffect />
@@ -344,51 +317,14 @@ export function AdminLiveMap() {
 
             <View style={[styles.mapModalBody, isWide ? styles.mapModalBodyWide : null]}>
               <View style={styles.mapModalShell}>
-                <MapView
+                <CustomOsmMap
                   style={styles.liveMap}
-                  provider={PROVIDER_DEFAULT}
-                  initialRegion={mapRegion}
-                  mapType={Platform.OS === 'ios' ? 'none' : 'standard'}
-                  loadingEnabled={false}
+                  region={mapRegion}
+                  markers={mapMarkers}
                   onMapReady={() => setIsPopupMapReady(true)}
                   onPress={() => setSelectedDriverId(null)}
-                  showsUserLocation={false}
-                  showsMyLocationButton={false}
-                  scrollEnabled
-                  zoomEnabled
-                  rotateEnabled
-                  pitchEnabled>
-                  <UrlTile
-                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    maximumZ={19}
-                    flipY={false}
-                  />
-                  {visibleMapDrivers.map((driver) => {
-                    const vehicleCategory = getVehicleCategory(driver);
-
-                    return (
-                      <Marker
-                        key={String(driver.driverId || driver.id)}
-                        coordinate={{ latitude: driver.latitude, longitude: driver.longitude }}
-                        onPress={(event) => {
-                          event.stopPropagation?.();
-                          setSelectedDriverId(String(driver.driverId || driver.id));
-                        }}>
-                        <Image
-                          source={getVehicleMarkerSource(vehicleCategory)}
-                          style={[
-                            styles.vehicleMarkerImage,
-                            !driver.isOnline ? styles.vehicleMarkerImageOffline : null,
-                            getVehicleHeadingStyle(driver.heading),
-                          ]}
-                        />
-                        <Callout tooltip>
-                          <DriverMapCallout driver={driver} />
-                        </Callout>
-                      </Marker>
-                    );
-                  })}
-                </MapView>
+                  onMarkerPress={(id) => setSelectedDriverId(id)}
+                />
                 {!isPopupMapReady ? (
                   <View style={styles.mapLoadingOverlay}>
                     <MapLoadingEffect />
@@ -437,6 +373,26 @@ function getVehicleCategory(driver: DriverLocationRecord) {
 
 function getVehicleMarkerSource(category: ReturnType<typeof getVehicleCategory>) {
   return vehicleMarkerImages[category || 'Default'];
+}
+
+function getVehicleMarkerUri(category: ReturnType<typeof getVehicleCategory>) {
+  return Image.resolveAssetSource(getVehicleMarkerSource(category))?.uri;
+}
+
+function getVehicleMarkerColor(category: ReturnType<typeof getVehicleCategory>) {
+  switch (category) {
+    case 'Bike':
+      return '#0077B6';
+    case 'Tuk':
+      return '#D97706';
+    case 'Mini':
+      return '#008080';
+    case 'Van':
+      return '#7C3AED';
+    case 'Car':
+    default:
+      return '#4A6FA5';
+  }
 }
 
 function getVehicleHeadingStyle(heading?: number) {
