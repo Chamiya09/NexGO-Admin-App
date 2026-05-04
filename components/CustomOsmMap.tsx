@@ -66,13 +66,13 @@ function buildHtml(region: AdminOsmRegion) {
       filter: drop-shadow(0 5px 10px rgba(0,0,0,.26));
     }
     .vehicle-badge {
-      width: 42px; height: 42px; border-radius: 14px;
+      width: 42px; height: 42px;
       display: grid; place-items: center;
-      background: #fff; border: 2px solid var(--marker-color, #008080);
+      background: transparent; border: 0;
       box-sizing: border-box;
     }
     .vehicle-wrap.selected .vehicle-badge {
-      box-shadow: 0 0 0 4px rgba(0,128,128,.22);
+      filter: drop-shadow(0 0 5px rgba(0,128,128,.55));
     }
     .vehicle-wrap.offline {
       opacity: .55;

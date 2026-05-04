@@ -43,12 +43,11 @@ function regionToZoom(region: AdminOsmRegion) {
 }
 
 function createVehicleIcon(marker: AdminOsmMarker) {
-  const color = marker.color || '#008080';
   const heading = Number(marker.heading || 0);
   const opacity = marker.isOnline === false ? 0.55 : 1;
   const selectedRing = marker.selected
-    ? '0 0 0 4px rgba(0,128,128,.2), 0 8px 18px rgba(0,0,0,.28)'
-    : '0 5px 14px rgba(0,0,0,.24)';
+    ? 'drop-shadow(0 0 5px rgba(0,128,128,.55)) drop-shadow(0 7px 10px rgba(0,0,0,.26))'
+    : 'drop-shadow(0 6px 9px rgba(0,0,0,.24))';
   const label = escapeHtml(marker.label || 'Driver');
   const markerBody = marker.iconUrl
     ? `<img src="${escapeHtml(marker.iconUrl)}" alt="${label}" style="width:34px;height:34px;object-fit:contain;display:block;transform:rotate(${heading}deg);" />`
@@ -57,10 +56,10 @@ function createVehicleIcon(marker: AdminOsmMarker) {
   return L.divIcon({
     className: '',
     html: `<div style="
-      width:42px;height:42px;border-radius:14px;
+      width:42px;height:42px;
       display:grid;place-items:center;
-      background:#ffffff;border:2px solid ${color};
-      box-shadow:${selectedRing};
+      background:transparent;border:0;
+      filter:${selectedRing};
       opacity:${opacity};
     ">${markerBody}</div>`,
     iconSize: [46, 46],
