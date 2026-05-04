@@ -126,7 +126,11 @@ export default function AdminUsersScreen() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [newAdminForm, setNewAdminForm] = useState<NewAdminForm>(emptyNewAdminForm);
   const [createAdminModalVisible, setCreateAdminModalVisible] = useState(false);
+  const [editAdminModalVisible, setEditAdminModalVisible] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null);
+  const [editAdminForm, setEditAdminForm] = useState<NewAdminForm>(emptyNewAdminForm);
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [updatingAdmin, setUpdatingAdmin] = useState(false);
   const [adminFormMessage, setAdminFormMessage] = useState<string | null>(null);
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -417,6 +421,38 @@ export default function AdminUsersScreen() {
     setAdminFormMessage(null);
   };
 
+  const openEditAdminModal = (admin: AdminUser) => {
+    setEditingAdmin(admin);
+    setEditAdminForm({
+      fullName: admin.fullName || '',
+      email: admin.email || '',
+      phoneNumber: admin.phoneNumber || '',
+      role: admin.role || 'Operations Admin',
+      scope: admin.scope || 'NexGO Control Center',
+      office: admin.office || 'Colombo HQ',
+      shift: admin.shift || 'Full operations coverage',
+      password: '',
+    });
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+    setEditAdminModalVisible(true);
+  };
+
+  const closeEditAdminModal = () => {
+    if (!updatingAdmin) {
+      setEditAdminModalVisible(false);
+      setEditingAdmin(null);
+      setEditAdminForm(emptyNewAdminForm);
+      setAdminFormError(null);
+    }
+  };
+
+  const handleEditAdminChange = (field: keyof NewAdminForm, value: string) => {
+    setEditAdminForm((current) => ({ ...current, [field]: value }));
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+  };
+
   const createAdminAccount = async () => {
     setCreatingAdmin(true);
     setAdminFormError(null);
@@ -439,6 +475,58 @@ export default function AdminUsersScreen() {
     } finally {
       setCreatingAdmin(false);
     }
+  };
+
+  const updateAdminAccount = async () => {
+    if (!editingAdmin) return;
+
+    setUpdatingAdmin(true);
+    setAdminFormError(null);
+    setAdminFormMessage(null);
+
+    try {
+      const response = await authFetch(`${API_BASE_URL}/admin/admins/${editingAdmin.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editAdminForm),
+      });
+      const data = await parseApiResponse<{ admin: AdminUser; message?: string }>(response);
+
+      setAdminUsers((current) =>
+        current.map((admin) => (admin.id === data.admin.id ? data.admin : admin))
+      );
+      setAdminFormMessage(data.message || 'Admin account updated successfully.');
+      setEditAdminModalVisible(false);
+      setEditingAdmin(null);
+    } catch (error) {
+      setAdminFormError(error instanceof Error ? error.message : 'Unable to update admin account.');
+    } finally {
+      setUpdatingAdmin(false);
+    }
+  };
+
+  const handleDeleteAdmin = (admin: AdminUser) => {
+    setConfirmState({
+      title: 'Delete admin',
+      message: `${admin.fullName} will lose access to the admin workspace. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          setErrorMessage(null);
+          const response = await authFetch(`${API_BASE_URL}/admin/admins/${admin.id}`, {
+            method: 'DELETE',
+          });
+          await parseApiResponse<{ id: string; message?: string }>(response);
+          setAdminUsers((current) => current.filter((item) => item.id !== admin.id));
+          setAdminFormMessage('Admin account deleted successfully.');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to delete admin account.';
+          setErrorMessage(message);
+          Alert.alert('Request failed', message);
+        }
+      },
+    });
   };
 
   return (
@@ -547,16 +635,30 @@ export default function AdminUsersScreen() {
 
             {adminUsers.map((admin) => (
               <View key={admin.id} style={styles.passengerRow}>
-                <View style={styles.passengerIdentity}>
-                  <ProfileAvatar imageUrl={admin.profileImageUrl} name={admin.fullName} fallback="A" />
-                  <View style={styles.reviewTextWrap}>
-                    <Text style={styles.reviewName}>{admin.fullName}</Text>
-                    <Text style={styles.reviewMeta}>
-                      {admin.email} | {admin.phoneNumber || 'No phone'}
-                    </Text>
-                    <Text style={styles.reviewDetailLine}>
-                      {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
-                    </Text>
+                <View style={styles.adminAccountRow}>
+                  <View style={styles.adminAccountIdentity}>
+                    <ProfileAvatar imageUrl={admin.profileImageUrl} name={admin.fullName} fallback="A" />
+                    <View style={styles.adminAccountTextWrap}>
+                      <Text style={styles.reviewName} numberOfLines={1}>{admin.fullName}</Text>
+                      <Text style={styles.reviewMeta} numberOfLines={1}>
+                        {admin.email} | {admin.phoneNumber || 'No phone'}
+                      </Text>
+                      <Text style={styles.reviewDetailLine} numberOfLines={1}>
+                        {admin.role || 'Operations Admin'} | {admin.office || 'Colombo HQ'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.adminAccountActions}>
+                    <Pressable style={styles.adminSmallActionButton} onPress={() => openEditAdminModal(admin)}>
+                      <Ionicons name="create-outline" size={15} color={teal} />
+                      <Text style={styles.adminSmallActionText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.adminSmallActionButton, styles.adminSmallActionButtonDanger]}
+                      onPress={() => handleDeleteAdmin(admin)}>
+                      <Ionicons name="trash-outline" size={15} color="#C13B3B" />
+                      <Text style={[styles.adminSmallActionText, styles.adminSmallActionTextDanger]}>Delete</Text>
+                    </Pressable>
                   </View>
                 </View>
               </View>
@@ -780,6 +882,15 @@ export default function AdminUsersScreen() {
         onChange={handleNewAdminChange}
         onCreate={createAdminAccount}
         onClose={closeCreateAdminModal}
+      />
+      <EditAdminModal
+        visible={editAdminModalVisible}
+        form={editAdminForm}
+        errorMessage={adminFormError}
+        updating={updatingAdmin}
+        onChange={handleEditAdminChange}
+        onSave={updateAdminAccount}
+        onClose={closeEditAdminModal}
       />
       <ConfirmDialog
         visible={Boolean(confirmState)}
@@ -1115,6 +1226,112 @@ function CreateAdminModal({
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.modalPrimaryButtonText}>Create Admin</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function EditAdminModal({
+  visible,
+  form,
+  errorMessage,
+  updating,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  form: NewAdminForm;
+  errorMessage: string | null;
+  updating: boolean;
+  onChange: (field: keyof NewAdminForm, value: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.createAdminModalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTextWrap}>
+              <Text style={styles.modalTitle}>Edit Admin</Text>
+              <Text style={styles.modalSubtitle}>Update workspace access details and optional password reset.</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose} disabled={updating}>
+              <Ionicons name="close" size={20} color="#102A28" />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={styles.createAdminFormScroll}
+            contentContainerStyle={styles.createAdminFormContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <AdminInput
+              label="Full name"
+              value={form.fullName}
+              onChangeText={(value) => onChange('fullName', value)}
+            />
+            <AdminInput
+              label="Email"
+              value={form.email}
+              onChangeText={(value) => onChange('email', value)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <AdminInput
+              label="Phone number"
+              value={form.phoneNumber}
+              onChangeText={(value) => onChange('phoneNumber', value)}
+              keyboardType="phone-pad"
+            />
+            <AdminInput
+              label="Role"
+              value={form.role}
+              onChangeText={(value) => onChange('role', value)}
+            />
+            <AdminInput
+              label="Scope"
+              value={form.scope}
+              onChangeText={(value) => onChange('scope', value)}
+            />
+            <AdminInput
+              label="Office"
+              value={form.office}
+              onChangeText={(value) => onChange('office', value)}
+            />
+            <AdminInput
+              label="Shift"
+              value={form.shift}
+              onChangeText={(value) => onChange('shift', value)}
+            />
+            <AdminInput
+              label="New password"
+              value={form.password}
+              onChangeText={(value) => onChange('password', value)}
+              placeholder="Leave blank to keep current password"
+              secureTextEntry
+            />
+
+            {errorMessage ? <Text style={styles.formErrorText}>{errorMessage}</Text> : null}
+          </ScrollView>
+
+          <View style={styles.modalActionRow}>
+            <Pressable style={styles.modalSecondaryButton} onPress={onClose} disabled={updating}>
+              <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalPrimaryButton, updating ? styles.modalButtonDisabled : null]}
+              onPress={onSave}
+              disabled={updating}>
+              {updating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalPrimaryButtonText}>Save Changes</Text>
               )}
             </Pressable>
           </View>
@@ -2895,6 +3112,63 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     flexShrink: 1,
+  },
+  adminAccountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  adminAccountIdentity: {
+    flex: 1,
+    flexBasis: 260,
+    minWidth: 220,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  adminAccountTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  adminAccountActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'nowrap',
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 188,
+    gap: 8,
+  },
+  adminSmallActionButton: {
+    flex: 1,
+    minHeight: 34,
+    minWidth: 88,
+    maxWidth: 112,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  adminSmallActionButtonDanger: {
+    borderColor: '#F1D6D6',
+    backgroundColor: '#FFF4F4',
+  },
+  adminSmallActionText: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  adminSmallActionTextDanger: {
+    color: '#C13B3B',
   },
   adminHeaderActions: {
     flexDirection: 'row',
