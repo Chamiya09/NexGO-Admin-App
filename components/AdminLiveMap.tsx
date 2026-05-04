@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomOsmMap } from './CustomOsmMap.web';
+import { CustomOsmMap } from './CustomOsmMap';
 
 import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 import {
