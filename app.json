@@ -9,7 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow NexGO Admin to use your current location for live operations monitoring and nearby ride oversight.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow NexGO Admin to keep live operations monitoring accurate, even when the app is in the background.",
+        "NSLocationAlwaysUsageDescription": "Allow NexGO Admin to keep live operations monitoring accurate while the app is in the background.",
+        "NSCameraUsageDescription": "Allow NexGO Admin to use your camera for admin profile and promotion images.",
+        "NSPhotoLibraryUsageDescription": "Allow NexGO Admin to access photos for admin profile images and promotion artwork.",
+        "NSPhotoLibraryAddUsageDescription": "Allow NexGO Admin to save captured profile and promotion images."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,9 +28,6 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ],
       "package": "com.chamiya09.nexgo"
     },
     "web": {
@@ -32,9 +37,31 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow NexGO Admin to use your current location for live operations monitoring and nearby ride oversight.",
+          "locationAlwaysAndWhenInUsePermission": "Allow NexGO Admin to keep live operations monitoring accurate, even when the app is in the background.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow NexGO Admin to use your camera for admin profile and promotion images."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow NexGO Admin to access photos for admin profile images and promotion artwork.",
+          "savePhotosPermission": "Allow NexGO Admin to save captured profile and promotion images."
+        }
+      ],
+      [
         "expo-image-picker",
         {
-          "photosPermission": "Allow NexGO Admin to select promotion images from your gallery."
+          "photosPermission": "Allow NexGO Admin to select admin profile images and promotion artwork from your gallery."
         }
       ],
       [

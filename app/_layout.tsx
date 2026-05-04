@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { AdminAuthProvider } from '@/context/admin-auth-context';
+import { useAppPermissions } from '@/hooks/useAppPermissions';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -43,6 +44,7 @@ function KeyboardDismissView({ children }: PropsWithChildren) {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  useAppPermissions();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
