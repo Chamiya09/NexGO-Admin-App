@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "NexGO Admin",
-    "slug": "nexgo",
+    "slug": "nexgo-admin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/Admin Dark App Logo.png",
-    "scheme": "nexgo",
+    "scheme": "nexgo-admin",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -27,7 +27,7 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.chamiya09.nexgo"
+      "package": "com.chamiya09.nexgo.admin"
     },
     "web": {
       "output": "static",
