@@ -1,10 +1,26 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useAdminAuth } from '@/context/admin-auth-context';
 
 export default function TabLayout() {
+  const { initializing, token } = useAdminAuth();
+
+  if (initializing) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F8F7' }}>
+        <ActivityIndicator color="#008080" />
+      </View>
+    );
+  }
+
+  if (!token) {
+    return <Redirect href="/login" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -37,13 +53,7 @@ export default function TabLayout() {
         name="users"
         options={{
           href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="live-map"
-        options={{
-          title: 'Live Map',
-          tabBarIcon: ({ color }) => <Ionicons size={24} name="map-outline" color={color} />,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -51,6 +61,13 @@ export default function TabLayout() {
         options={{
           title: 'Support',
           tabBarIcon: ({ color }) => <Ionicons size={24} name="headset-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="activities"
+        options={{
+          title: 'Trips',
+          tabBarIcon: ({ color }) => <Ionicons size={24} name="receipt-outline" color={color} />,
         }}
       />
       <Tabs.Screen

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -6,13 +6,19 @@ import {
   Text,
   View,
   Platform,
+  Linking,
+  Alert,
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { useAdminAuth } from '@/context/admin-auth-context';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 type ProfileSection = {
   title: string;
@@ -20,6 +26,7 @@ type ProfileSection = {
   icon: keyof typeof Ionicons.glyphMap;
   badge?: string;
   route?: '/profile/admin-details' | '/profile/promotions' | '/profile/reviews' | '/profile/account-security' | '/users';
+  url?: string;
 };
 
 const palette = {
@@ -33,12 +40,6 @@ const palette = {
   border: '#D9E9E6',
   danger: '#C13B3B',
   dangerBg: '#FFF4F4',
-};
-
-const adminProfile = {
-  fullName: 'NexGO Operations Admin',
-  role: 'Operations Supervisor',
-  scope: 'Colombo HQ command access',
 };
 
 const PROFILE_SECTIONS: ProfileSection[] = [
@@ -74,15 +75,57 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     icon: 'shield-checkmark-outline',
     route: '/profile/account-security',
   },
-];
-
-const PROFILE_METRICS = [
-  { label: 'Approvals', value: '184', icon: 'checkmark-done-outline' as const },
-  { label: 'Drivers Live', value: '326', icon: 'car-sport-outline' as const },
-  { label: 'Escalations', value: '6', icon: 'alert-circle-outline' as const },
+  {
+    title: 'Open Admin Workspace',
+    subtitle: 'Access the full web dashboard for advanced operations',
+    icon: 'desktop-outline',
+    url: 'https://admin.nexgo.lk',
+  },
 ];
 
 export default function AdminProfileScreen() {
+  const { admin, logout, refreshSession } = useAdminAuth();
+  const [freshAdmin, setFreshAdmin] = useState<typeof admin>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+
+      const loadProfile = async () => {
+        try {
+          await refreshSession();
+          const profileResponse = await authFetch(`${API_BASE_URL}/admin/profile`);
+          
+          const profileData = await parseApiResponse<{ adminProfile: NonNullable<typeof admin> }>(profileResponse);
+
+          if (isActive) {
+            setFreshAdmin(profileData.adminProfile);
+          }
+        } catch {
+          if (isActive) {
+            setFreshAdmin(null);
+          }
+        }
+      };
+
+      void loadProfile();
+
+      return () => {
+        isActive = false;
+      };
+    }, [refreshSession])
+  );
+
+  const visibleAdmin = freshAdmin ?? admin;
+  const adminProfile = {
+    fullName: visibleAdmin?.fullName || 'NexGO Operations Admin',
+    profileImageUrl: visibleAdmin?.profileImageUrl || '',
+    role: visibleAdmin?.role || 'Operations Supervisor',
+    scope: visibleAdmin?.scope || 'Colombo HQ command access',
+  };
+  const profileImageUri = adminProfile.profileImageUrl
+    ? `${adminProfile.profileImageUrl}${adminProfile.profileImageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(adminProfile.profileImageUrl)}`
+    : '';
   const initials = adminProfile.fullName
     .split(' ')
     .filter(Boolean)
@@ -97,30 +140,17 @@ export default function AdminProfileScreen() {
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.profileHead}>
             <View style={[styles.avatarCircle, { backgroundColor: palette.accentMuted, borderColor: palette.border }]}>
-              <Text style={[styles.avatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} contentFit="cover" cachePolicy="none" />
+              ) : (
+                <Text style={[styles.avatarInitials, { color: palette.accent }]}>{initials || 'A'}</Text>
+              )}
             </View>
 
             <Text style={[styles.profileName, { color: palette.primaryText }]}>{adminProfile.fullName}</Text>
             <Text style={[styles.memberCaption, { color: palette.secondaryText }]}>{adminProfile.role}</Text>
             <Text style={[styles.roleScope, { color: palette.secondaryText }]}>{adminProfile.scope}</Text>
           </View>
-
-          <View style={styles.metricsRow}>
-            {PROFILE_METRICS.map((metric) => (
-              <View
-                key={metric.label}
-                style={[styles.metricItem, { backgroundColor: palette.elevatedCard, borderColor: palette.border }]}>
-                <Ionicons name={metric.icon} size={16} color={palette.accent} />
-                <Text style={[styles.metricValue, { color: palette.primaryText }]}>{metric.value}</Text>
-                <Text style={[styles.metricLabel, { color: palette.secondaryText }]}>{metric.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Pressable style={[styles.quickActionButton, { backgroundColor: palette.accent }]}>
-            <Text style={styles.quickActionText}>Open Admin Workspace</Text>
-            <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
-          </Pressable>
         </View>
 
         <View style={styles.sectionHeadingWrap}>
@@ -137,6 +167,10 @@ export default function AdminProfileScreen() {
             onPress={() => {
               if (section.route) {
                 router.push(section.route);
+              } else if (section.url) {
+                Linking.openURL(section.url).catch(() => {
+                  Alert.alert('Unavailable', 'Could not open the workspace URL on this device.');
+                });
               }
             }}>
             <View style={styles.settingLeft}>
@@ -167,7 +201,10 @@ export default function AdminProfileScreen() {
             styles.logoutRow,
             { backgroundColor: palette.dangerBg, borderColor: '#F1D6D6' },
           ]}
-          onPress={() => router.replace('/login')}>
+          onPress={() => {
+            logout();
+            router.replace('/login');
+          }}>
           <View style={styles.settingLeft}>
             <View style={[styles.settingIconWrap, { backgroundColor: '#FFE9E9' }]}>
               <Ionicons name="log-out-outline" size={20} color={palette.danger} />
@@ -227,6 +264,10 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '800',
   },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
   profileName: {
     fontSize: 20,
     fontWeight: '800',
@@ -242,29 +283,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'center',
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
-  },
-  metricItem: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
-  metricValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 4,
-    marginBottom: 1,
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   quickActionButton: {
     borderRadius: 14,

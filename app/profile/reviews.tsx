@@ -8,12 +8,13 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -48,10 +49,12 @@ type AdminRideReview = {
     fullName?: string;
     email?: string;
     phoneNumber?: string;
+    profileImageUrl?: string;
   } | null;
   driver?: {
     fullName?: string;
     phoneNumber?: string;
+    profileImageUrl?: string;
     vehicle?: {
       make?: string;
       model?: string;
@@ -130,7 +133,7 @@ export default function AdminReviewManagerScreen() {
     setReviews([]);
 
     try {
-      const response = await fetch(buildReviewsUrl(activeFilter), {
+      const response = await authFetch(buildReviewsUrl(activeFilter), {
         headers: { 'Cache-Control': 'no-cache' },
       });
       const data = await parseReviewsResponse(response);
@@ -139,7 +142,7 @@ export default function AdminReviewManagerScreen() {
       setReviews(savedReviews);
 
       try {
-        const summaryResponse = await fetch(buildReviewsUrl('all'), {
+        const summaryResponse = await authFetch(buildReviewsUrl('all'), {
           headers: { 'Cache-Control': 'no-cache' },
         });
         const summaryData = await parseReviewsResponse(summaryResponse);
@@ -173,7 +176,7 @@ export default function AdminReviewManagerScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/rides/admin/reviews/${review.rideId}`, {
+      const response = await authFetch(`${API_BASE_URL}/rides/admin/reviews/${review.rideId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -324,7 +327,7 @@ export default function AdminReviewManagerScreen() {
             <View style={styles.popupHeader}>
               <View style={styles.popupHeaderMain}>
                 <View style={[styles.popupIcon, { backgroundColor: palette.accentSoft }]}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.accent} />
+                  <ProfileAvatar imageUrl={detailsReview.driver?.profileImageUrl} name={detailsReview.driver?.fullName} fallback="D" size={40} />
                 </View>
                 <View style={styles.popupTitleWrap}>
                   <Text style={[styles.popupTitle, { color: palette.textPrimary }]}>Review Details</Text>
@@ -378,6 +381,30 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
   );
 }
 
+function ProfileAvatar({
+  imageUrl,
+  name,
+  fallback,
+  size,
+}: {
+  imageUrl?: string;
+  name?: string;
+  fallback: string;
+  size: number;
+}) {
+  const initial = (name || fallback).trim().charAt(0).toUpperCase() || fallback;
+
+  return (
+    <View style={[styles.profileAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.profileAvatarImage} />
+      ) : (
+        <Text style={styles.profileAvatarText}>{initial}</Text>
+      )}
+    </View>
+  );
+}
+
 function ReviewRow({
   review,
   isUpdating,
@@ -392,80 +419,123 @@ function ReviewRow({
   onReject: () => void;
 }) {
   const canModerate = review.status === 'review';
+  const submittedLabel = formatDate(review.submittedAt || review.reviewedAt);
+  const vehicleLabel = formatVehicle(review);
+  const tone = getReviewTone(review.status);
 
   return (
-    <Pressable
-      style={[
-        styles.reviewRow,
-        {
-          backgroundColor: palette.card,
-          borderColor: palette.border,
-        },
-      ]}
-    >
+    <View style={styles.reviewRow}>
+      <View style={[styles.reviewAccent, { backgroundColor: tone.text }]} />
       <View style={styles.reviewTopRow}>
         <View style={styles.reviewMain}>
-          <View style={[styles.reviewIcon, { backgroundColor: palette.warningSoft }]}>
-            <Ionicons name="star" size={18} color={palette.warning} />
+          <View style={[styles.ratingTile, { backgroundColor: tone.soft, borderColor: tone.border }]}>
+            <Text style={[styles.ratingTileValue, { color: tone.text }]}>{review.rating}.0</Text>
+            <View style={styles.ratingTileStars}>
+              <StarStrip rating={review.rating} size={9} />
+            </View>
           </View>
           <View style={styles.reviewTextWrap}>
-            <Text style={[styles.reviewName, { color: palette.textPrimary }]} numberOfLines={1}>
-              {review.driver?.fullName || 'Driver not available'}
+            <View style={styles.reviewIdentityLine}>
+              <ProfileAvatar imageUrl={review.driver?.profileImageUrl} name={review.driver?.fullName} fallback="D" size={28} />
+              <Text style={styles.reviewName} numberOfLines={1}>
+                {review.driver?.fullName || 'Driver not available'}
+              </Text>
+            </View>
+            <Text style={styles.reviewSubtext} numberOfLines={1}>
+              Passenger: {review.passenger?.fullName || 'Passenger not available'}
             </Text>
-            <Text style={[styles.reviewSubtext, { color: palette.textSecondary }]} numberOfLines={2}>
-              {review.passenger?.fullName || 'Passenger'} | {formatVehicle(review)}
-            </Text>
+            <View style={styles.reviewMetaLine}>
+              <Ionicons name="calendar-outline" size={12} color={palette.textSecondary} />
+              <Text style={styles.reviewMetaText} numberOfLines={1}>{submittedLabel}</Text>
+            </View>
           </View>
         </View>
 
         <StatusBadge status={review.status} />
       </View>
 
-      <View style={[styles.messageBox, { backgroundColor: palette.input, borderColor: palette.border }]}>
-        <Ionicons name="chatbubble-ellipses-outline" size={15} color={palette.accent} />
-        <Text style={[styles.messageText, { color: palette.textPrimary }]} numberOfLines={2}>
+      <View style={styles.messageBox}>
+        <View style={styles.messageHeader}>
+          <Ionicons name="chatbubble-ellipses-outline" size={14} color={palette.accent} />
+          <Text style={styles.messageLabel}>PASSENGER REVIEW</Text>
+        </View>
+        <Text style={styles.messageText} numberOfLines={3}>
           {review.comment || 'No written review message.'}
         </Text>
       </View>
 
-      <View style={styles.reviewFooter}>
-        <View style={styles.ratingMiniWrap}>
-          <StarStrip rating={review.rating} />
-          <Text style={[styles.ratingMiniText, { color: palette.warning }]}>{review.rating}.0</Text>
-        </View>
+      <View style={styles.reviewInfoGrid}>
+        <ReviewInfoPill icon="car-outline" label="Vehicle" value={vehicleLabel} />
+        <ReviewInfoPill icon="barcode-outline" label="Plate" value={review.driver?.vehicle?.plateNumber || 'No plate'} />
+        <ReviewInfoPill icon="call-outline" label="Passenger" value={review.passenger?.phoneNumber || 'No phone'} />
+      </View>
 
+      <View style={styles.reviewFooter}>
         <View style={styles.rowButtons}>
           <Pressable
-            style={[styles.rowActionButton, { backgroundColor: palette.input, borderColor: palette.border }]}
+            style={[styles.rowActionButton, styles.detailsButton]}
+            hitSlop={6}
             onPress={onViewDetails}>
             <Ionicons name="eye-outline" size={15} color={palette.textSecondary} />
-            <Text style={[styles.rowNeutralText, { color: palette.textSecondary }]}>
-              View Details
-            </Text>
+            <Text style={styles.rowNeutralText}>Details</Text>
           </Pressable>
 
           {canModerate ? (
             <>
-            <Pressable
-              style={[styles.rowActionButton, { backgroundColor: palette.dangerSoft, borderColor: '#F1D6D6' }, isUpdating ? styles.disabledButton : null]}
-              disabled={isUpdating}
-              onPress={onReject}>
-              <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
-              <Text style={[styles.rowDeleteText, { color: palette.danger }]}>Reject</Text>
-            </Pressable>
+              <Pressable
+                style={[styles.rowActionButton, styles.rejectButton, isUpdating ? styles.disabledButton : null]}
+                disabled={isUpdating}
+                hitSlop={6}
+                onPress={onReject}>
+                <Ionicons name="close-circle-outline" size={15} color={palette.danger} />
+                <Text style={styles.rowDeleteText}>Reject</Text>
+              </Pressable>
 
-            <Pressable
-              style={[styles.rowActionButton, { backgroundColor: palette.accentSoft, borderColor: palette.border }, isUpdating ? styles.disabledButton : null]}
-              disabled={isUpdating}
-              onPress={onApprove}>
-              <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
-              <Text style={[styles.rowEditText, { color: palette.accent }]}>Approve</Text>
-            </Pressable>
+              <Pressable
+                style={[styles.rowActionButton, styles.approveButton, isUpdating ? styles.disabledButton : null]}
+                disabled={isUpdating}
+                hitSlop={6}
+                onPress={onApprove}>
+                <Ionicons name="checkmark-circle-outline" size={15} color={palette.accent} />
+                <Text style={styles.rowEditText}>Approve</Text>
+              </Pressable>
             </>
           ) : null}
         </View>
       </View>
-    </Pressable>
+    </View>
+  );
+}
+
+function getReviewTone(status: AdminRideReview['status']) {
+  if (status === 'approved') {
+    return { soft: palette.successSoft, border: '#CAEBD8', text: palette.success };
+  }
+
+  if (status === 'rejected') {
+    return { soft: palette.dangerSoft, border: '#F1D6D6', text: palette.danger };
+  }
+
+  return { soft: palette.warningSoft, border: '#F3E0BC', text: palette.warning };
+}
+
+function ReviewInfoPill({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.reviewInfoPill}>
+      <Ionicons name={icon} size={13} color={palette.accent} />
+      <View style={styles.reviewInfoTextWrap}>
+        <Text style={styles.reviewInfoLabel}>{label}</Text>
+        <Text style={styles.reviewInfoValue} numberOfLines={1}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -503,14 +573,14 @@ function StatusBadge({ status }: { status: AdminRideReview['status'] }) {
   );
 }
 
-function StarStrip({ rating }: { rating: number }) {
+function StarStrip({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map((star) => (
         <Ionicons
           key={star}
           name={star <= rating ? 'star' : 'star-outline'}
-          size={14}
+          size={size}
           color={star <= rating ? '#F5A623' : '#B7C7C5'}
         />
       ))}
@@ -723,59 +793,171 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reviewRow: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 12,
-    gap: 10,
+    borderColor: palette.border,
+    backgroundColor: palette.card,
+    paddingVertical: 14,
+    paddingLeft: 16,
+    paddingRight: 14,
+    gap: 12,
+    overflow: 'hidden',
+  },
+  reviewAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: palette.accent,
   },
   reviewTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
+    minHeight: 58,
   },
   reviewMain: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
     minWidth: 0,
   },
-  reviewIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+  ratingTile: {
+    width: 66,
+    minHeight: 54,
+    borderRadius: 14,
+    backgroundColor: palette.warningSoft,
+    borderWidth: 1,
+    borderColor: '#F3E0BC',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 7,
+    flexShrink: 0,
+  },
+  ratingTileValue: {
+    color: palette.warning,
+    fontSize: 17,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  ratingTileStars: {
+    width: 54,
+    alignItems: 'center',
   },
   reviewTextWrap: {
     flex: 1,
     minWidth: 0,
+    paddingTop: 2,
+  },
+  reviewIdentityLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  profileAvatar: {
+    backgroundColor: '#E7F5F3',
+    borderWidth: 1,
+    borderColor: '#D9E9E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileAvatarText: {
+    color: '#14988F',
+    fontSize: 12,
+    fontWeight: '900',
   },
   reviewName: {
+    color: palette.textPrimary,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
     marginBottom: 2,
   },
   reviewSubtext: {
+    color: palette.textSecondary,
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 17,
   },
+  reviewMetaLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+  },
+  reviewMetaText: {
+    color: palette.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   messageBox: {
     borderRadius: 13,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    borderColor: palette.border,
+    backgroundColor: palette.input,
+    padding: 10,
     gap: 7,
   },
+  messageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  messageLabel: {
+    color: palette.accent,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
   messageText: {
-    flex: 1,
+    color: palette.textPrimary,
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
+  },
+  reviewInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  reviewInfoPill: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    minWidth: 132,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  reviewInfoTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reviewInfoLabel: {
+    color: palette.textSecondary,
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    marginBottom: 1,
+  },
+  reviewInfoValue: {
+    color: palette.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
   },
   detailLine: {
     flexDirection: 'row',
@@ -800,6 +982,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    marginTop: 2,
   },
   statusText: {
     fontSize: 11,
@@ -808,7 +991,7 @@ const styles = StyleSheet.create({
   reviewFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
@@ -824,7 +1007,9 @@ const styles = StyleSheet.create({
   },
   starRow: {
     flexDirection: 'row',
-    gap: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
   },
   ratingMiniText: {
     fontSize: 12,
@@ -836,28 +1021,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
-    flexShrink: 1,
+    width: '100%',
   },
   rowActionButton: {
-    minWidth: 84,
+    flexGrow: 1,
+    flexBasis: 96,
+    minWidth: 96,
     minHeight: 34,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
+  detailsButton: {
+    backgroundColor: palette.input,
+    borderColor: palette.border,
+  },
+  approveButton: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.border,
+  },
+  rejectButton: {
+    backgroundColor: palette.dangerSoft,
+    borderColor: '#F1D6D6',
+  },
   rowEditText: {
+    color: palette.accent,
     fontSize: 12,
     fontWeight: '900',
   },
   rowDeleteText: {
+    color: palette.danger,
     fontSize: 12,
     fontWeight: '900',
   },
   rowNeutralText: {
+    color: palette.textSecondary,
     fontSize: 12,
     fontWeight: '900',
   },

@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const teal = '#008080';
 
@@ -75,7 +75,7 @@ export default function AdminSupportScreen() {
   const loadTickets = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin`);
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin`);
       const data = await parseApiResponse<{ tickets: AdminSupportTicket[] }>(response);
       setSupportTickets(data.tickets ?? []);
     } catch {
@@ -161,7 +161,7 @@ export default function AdminSupportScreen() {
 
     setStatusUpdatingTicketId(ticket.id);
     try {
-      const response = await fetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
+      const response = await authFetch(`${API_BASE_URL}/support-tickets/admin/${ticket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: statusDraft, adminNote: adminNoteDraft.trim() }),
@@ -185,6 +185,7 @@ export default function AdminSupportScreen() {
         showsVerticalScrollIndicator={false}
         onRefreshPage={loadTickets}>
         <View style={styles.header}>
+          <Text style={styles.eyebrow}>SUPPORT DESK</Text>
           <Text style={styles.pageTitle}>Complaint & Support Tickets</Text>
           <Text style={styles.pageSubtitle}>
             Track escalations, monitor active complaints, and manage support follow-ups from one place.
@@ -524,8 +525,15 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 16,
   },
+  eyebrow: {
+    color: teal,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    marginBottom: 6,
+  },
   pageTitle: {
-    color: '#123532',
+    color: '#102A28',
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,

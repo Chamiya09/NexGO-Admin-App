@@ -15,27 +15,35 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { useAdminAuth } from '@/context/admin-auth-context';
 
 export default function AdminLoginScreen() {
+  const { initializing, loading, login, token } = useAdminAuth();
   const [email, setEmail] = useState('admin@nexgo.lk');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSignIn = () => {
+  React.useEffect(() => {
+    if (!initializing && token) {
+      router.replace('/(tabs)');
+    }
+  }, [initializing, token]);
+
+  const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
       setErrorMessage('Please enter your admin email and password.');
       return;
     }
 
-    setIsSubmitting(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await login({ email: email.trim(), password });
       router.replace('/(tabs)');
-    }, 350);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
+    }
   };
 
   return (
@@ -117,10 +125,10 @@ export default function AdminLoginScreen() {
               </View>
 
               <Pressable
-                style={[styles.primaryButton, isSubmitting ? styles.buttonDisabled : null]}
-                disabled={isSubmitting}
+                style={[styles.primaryButton, loading ? styles.buttonDisabled : null]}
+                disabled={loading}
                 onPress={handleSignIn}>
-                <Text style={styles.primaryButtonText}>{isSubmitting ? 'Signing in...' : 'Sign in'}</Text>
+                <Text style={styles.primaryButtonText}>{loading ? 'Signing in...' : 'Sign in'}</Text>
                 <Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
               </Pressable>
 

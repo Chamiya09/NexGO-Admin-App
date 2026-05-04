@@ -11,6 +11,7 @@ export type AdminDriverLocation = {
   vehicleCategory?: string;
   isOnline?: boolean;
   heading?: number;
+  updatedAt?: number;
 };
 
 let adminSocket: Socket | null = null;

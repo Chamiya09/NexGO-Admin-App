@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,7 +20,8 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
-import { API_BASE_URL, parseApiResponse } from '@/lib/api';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { API_BASE_URL, authFetch, parseApiResponse } from '@/lib/api';
 
 const palette = {
   background: '#F4F8F7',
@@ -123,6 +123,8 @@ export default function PromotionManagementScreen() {
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
   const [isSavingPromotion, setIsSavingPromotion] = useState(false);
   const [updatingCampaignId, setUpdatingCampaignId] = useState<string | null>(null);
+  const [campaignPendingDelete, setCampaignPendingDelete] = useState<PromotionCampaign | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [visibleCalendarDate, setVisibleCalendarDate] = useState(new Date());
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export default function PromotionManagementScreen() {
   const loadPromotions = useCallback(async () => {
     setIsLoadingPromotions(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions`);
+      const response = await authFetch(`${API_BASE_URL}/promotions`);
       const data = await parseApiResponse<{ promotions: PromotionApiCampaign[] }>(response);
 
       const savedPromotions = (data.promotions ?? []).map(normalizePromotion);
@@ -247,7 +249,7 @@ export default function PromotionManagementScreen() {
       type: mimeType,
     } as unknown as Blob);
 
-    const response = await fetch(`${API_BASE_URL}/upload`, {
+    const response = await authFetch(`${API_BASE_URL}/upload`, {
       method: 'POST',
       body,
     });
@@ -290,7 +292,7 @@ export default function PromotionManagementScreen() {
       };
 
       const isExistingPromotion = campaigns.some((campaign) => campaign.id === form.id);
-      const response = await fetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions${isExistingPromotion ? `/${form.id}` : ''}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,7 +324,7 @@ export default function PromotionManagementScreen() {
 
   const deleteCampaign = async (campaign: PromotionCampaign) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}/delete`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions/${campaign.id}/delete`, {
         method: 'POST',
       });
       const data = await parseApiResponse<{ message?: string; id: string }>(response);
@@ -344,16 +346,19 @@ export default function PromotionManagementScreen() {
   };
 
   const confirmDeleteCampaign = (campaign: PromotionCampaign) => {
-    Alert.alert('Delete promotion', `Do you want to delete ${campaign.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void deleteCampaign(campaign);
-        },
-      },
-    ]);
+    setCampaignPendingDelete(campaign);
+  };
+
+  const handleConfirmDeleteCampaign = async () => {
+    if (!campaignPendingDelete) return;
+
+    setDeletingCampaign(true);
+    try {
+      await deleteCampaign(campaignPendingDelete);
+      setCampaignPendingDelete(null);
+    } finally {
+      setDeletingCampaign(false);
+    }
   };
 
   const toggleCampaign = async (campaign: PromotionCampaign) => {
@@ -368,7 +373,7 @@ export default function PromotionManagementScreen() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
+      const response = await authFetch(`${API_BASE_URL}/promotions/${campaign.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -680,6 +685,19 @@ export default function PromotionManagementScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+      <ConfirmDialog
+        visible={Boolean(campaignPendingDelete)}
+        title="Delete promotion"
+        message={`Do you want to delete ${campaignPendingDelete?.name || 'this promotion'}?`}
+        confirmLabel="Delete"
+        destructive
+        loading={deletingCampaign}
+        icon="trash-outline"
+        onCancel={() => {
+          if (!deletingCampaign) setCampaignPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteCampaign}
+      />
     </SafeAreaView>
   );
 }

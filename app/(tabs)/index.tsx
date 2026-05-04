@@ -1,34 +1,25 @@
 import React from 'react';
 import {
-  Platform,
   SafeAreaView,
   StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import RefreshableScrollView from '@/components/RefreshableScrollView';
+import { AdminAnalyticsOverview } from '@/components/AdminAnalyticsOverview';
+import { AdminLiveMap } from '@/components/AdminLiveMap';
 
 const teal = '#008080';
-
-const stats = [
-  { title: 'Total Revenue Today', value: '$18,420', change: '+12.4%', icon: 'cash-outline' as const },
-  { title: 'Active Rides', value: '148', change: '+9 live now', icon: 'car-sport-outline' as const },
-  { title: 'Available Drivers', value: '326', change: '81% online', icon: 'people-outline' as const },
-  { title: 'Pending Approvals', value: '17', change: 'Needs review', icon: 'document-text-outline' as const },
-];
-
-const weeklyRides = [86, 112, 98, 134, 162, 149, 184];
 
 export default function AdminDashboardScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
-  const chartHeight = 220;
-  const maxValue = Math.max(...weeklyRides);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -49,102 +40,12 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
 
-        <View style={[styles.statsGrid, isWide ? styles.statsGridWide : null]}>
-          {stats.map((stat) => (
-            <View key={stat.title} style={[styles.statCard, isWide ? styles.statCardWide : null]}>
-              <View style={styles.statCardTop}>
-                <View style={styles.statIconWrap}>
-                  <Ionicons name={stat.icon} size={20} color={teal} />
-                </View>
-                <Text style={styles.statChange}>{stat.change}</Text>
-              </View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statTitle}>{stat.title}</Text>
-            </View>
-          ))}
-        </View>
+        <AdminAnalyticsOverview />
 
-        <View style={[styles.analyticsRow, isWide ? styles.analyticsRowWide : null]}>
-          <View style={[styles.chartCard, isWide ? styles.chartCardMain : null]}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardEyebrow}>WEEKLY TREND</Text>
-                <Text style={styles.cardTitle}>Completed rides</Text>
-              </View>
-              <View style={styles.cardPill}>
-                <Text style={styles.cardPillText}>Last 7 days</Text>
-              </View>
-            </View>
+        <AdminLiveMap />
 
-            <View style={[styles.chartArea, { height: chartHeight }]}>
-              <View style={styles.chartGrid}>
-                {[0, 1, 2, 3].map((line) => (
-                  <View key={line} style={styles.chartGridLine} />
-                ))}
-              </View>
-
-              <View style={styles.chartBarsRow}>
-                {weeklyRides.map((value, index) => {
-                  const barHeight = Math.max((value / maxValue) * (chartHeight - 52), 28);
-                  return (
-                    <View key={`${value}-${index}`} style={styles.chartColumn}>
-                      <Text style={styles.chartValue}>{value}</Text>
-                      <View style={[styles.chartBar, { height: barHeight }]} />
-                      <Text style={styles.chartLabel}>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.chartCard, isWide ? styles.chartCardSide : null]}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardEyebrow}>QUICK WATCH</Text>
-                <Text style={styles.cardTitle}>Ops priorities</Text>
-              </View>
-            </View>
-
-            <View style={styles.priorityList}>
-              <PriorityRow title="Driver document reviews" value="17 waiting" tone="warning" />
-              <PriorityRow title="Search-to-match delay" value="2.4 min avg" tone="neutral" />
-              <PriorityRow title="High-demand zones" value="Colombo 03, Kandy" tone="accent" />
-              <PriorityRow title="Escalated support cases" value="6 open" tone="danger" />
-            </View>
-          </View>
-        </View>
       </RefreshableScrollView>
     </SafeAreaView>
-  );
-}
-
-function PriorityRow({
-  title,
-  value,
-  tone,
-}: {
-  title: string;
-  value: string;
-  tone: 'accent' | 'warning' | 'danger' | 'neutral';
-}) {
-  const toneStyle =
-    tone === 'accent'
-      ? styles.priorityDotAccent
-      : tone === 'warning'
-        ? styles.priorityDotWarning
-        : tone === 'danger'
-          ? styles.priorityDotDanger
-          : styles.priorityDotNeutral;
-
-  return (
-    <View style={styles.priorityRow}>
-      <View style={[styles.priorityDot, toneStyle]} />
-      <View style={styles.priorityTextWrap}>
-        <Text style={styles.priorityTitle}>{title}</Text>
-        <Text style={styles.priorityValue}>{value}</Text>
-      </View>
-    </View>
   );
 }
 
@@ -209,212 +110,5 @@ const styles = StyleSheet.create({
     color: '#123532',
     fontSize: 13,
     fontWeight: '700',
-  },
-  statsGrid: {
-    gap: 14,
-    marginBottom: 18,
-  },
-  statsGridWide: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  statCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
-  },
-  statCardWide: {
-    width: '24%',
-    minWidth: 220,
-  },
-  statCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  statIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#E7F5F3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statChange: {
-    color: '#157A62',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statValue: {
-    color: '#102A28',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  statTitle: {
-    color: '#617C79',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  analyticsRow: {
-    gap: 16,
-  },
-  analyticsRowWide: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  chartCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#D9E9E6',
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
-  },
-  chartCardMain: {
-    flex: 1.6,
-  },
-  chartCardSide: {
-    flex: 1,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'flex-start',
-    marginBottom: 18,
-  },
-  cardEyebrow: {
-    color: teal,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.9,
-    marginBottom: 3,
-  },
-  cardTitle: {
-    color: '#102A28',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  cardPill: {
-    borderRadius: 999,
-    backgroundColor: '#E7F5F3',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  cardPillText: {
-    color: teal,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  chartArea: {
-    borderRadius: 18,
-    backgroundColor: '#F7FBFA',
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 10,
-    overflow: 'hidden',
-  },
-  chartGrid: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-evenly',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  chartGridLine: {
-    height: 1,
-    backgroundColor: '#DCE9E7',
-  },
-  chartBarsRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  chartColumn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  chartValue: {
-    color: '#617C79',
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  chartBar: {
-    width: '100%',
-    maxWidth: 42,
-    borderRadius: 14,
-    backgroundColor: teal,
-    shadowColor: '#008080',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  chartLabel: {
-    color: '#617C79',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  priorityList: {
-    gap: 14,
-  },
-  priorityRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderRadius: 16,
-    backgroundColor: '#F7FBFA',
-    padding: 12,
-  },
-  priorityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 4,
-  },
-  priorityDotAccent: {
-    backgroundColor: teal,
-  },
-  priorityDotWarning: {
-    backgroundColor: '#D6A300',
-  },
-  priorityDotDanger: {
-    backgroundColor: '#C13B3B',
-  },
-  priorityDotNeutral: {
-    backgroundColor: '#7A908D',
-  },
-  priorityTextWrap: {
-    flex: 1,
-  },
-  priorityTitle: {
-    color: '#102A28',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  priorityValue: {
-    color: '#617C79',
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '500',
-  },
+  }
 });
