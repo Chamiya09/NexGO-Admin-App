@@ -1,43 +1,31 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
-import * as Camera from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as MediaLibrary from 'expo-media-library';
 
-const PERMISSIONS_BOOTSTRAP_KEY = 'nexgo.admin.permissions.bootstrapped.v1';
+const PERMISSIONS_BOOTSTRAP_KEY = 'nexgo.admin.permissions.bootstrapped.v3';
 
-type PermissionName = 'foregroundLocation' | 'backgroundLocation' | 'mediaLibrary' | 'camera';
-
-type PermissionSummary = Record<PermissionName, boolean | null>;
+type PermissionSummary = {
+  foregroundLocation: boolean | null;
+  mediaLibrary: boolean | null;
+};
 
 const initialSummary: PermissionSummary = {
   foregroundLocation: null,
-  backgroundLocation: null,
   mediaLibrary: null,
-  camera: null,
 };
 
 function showSettingsAlert(title: string, message: string) {
   Alert.alert(title, message, [
     { text: 'Not now', style: 'cancel' },
     {
-      text: 'Open Settings',
+      text: 'Go to Settings',
       onPress: () => {
         void Linking.openSettings();
       },
     },
   ]);
-}
-
-function showBackgroundLocationIntro() {
-  return new Promise<void>((resolve) => {
-    Alert.alert(
-      'Allow background location',
-      'NexGO Admin needs background location for live operations monitoring, so dispatcher location and active ride oversight can stay accurate even when the app is not on screen.',
-      [{ text: 'Continue', onPress: () => resolve() }]
-    );
-  });
 }
 
 export function useAppPermissions() {
@@ -59,81 +47,31 @@ export function useAppPermissions() {
         setChecking(false);
         return;
       }
+
       await AsyncStorage.setItem(PERMISSIONS_BOOTSTRAP_KEY, new Date().toISOString());
 
-      const nextSummary: PermissionSummary = { ...initialSummary };
+      const locationResult = await Location.requestForegroundPermissionsAsync();
+      const mediaResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const nextSummary = {
+        foregroundLocation: locationResult.granted,
+        mediaLibrary: mediaResult.granted,
+      };
 
-      const foreground = await Location.getForegroundPermissionsAsync();
-      const foregroundResult = foreground.granted
-        ? foreground
-        : await Location.requestForegroundPermissionsAsync();
-      nextSummary.foregroundLocation = foregroundResult.granted;
-
-      if (!foregroundResult.granted) {
+      if (!locationResult.granted && !locationResult.canAskAgain) {
         showSettingsAlert(
-          'Location permission needed',
-          'NexGO Admin needs location access for live operations monitoring and nearby ride oversight. Please allow location access in settings.'
+          'Location access is needed',
+          'NexGO Admin needs location access to support live map monitoring and location-aware operations. Please enable Location permission in settings.'
         );
       }
 
-      if (foregroundResult.granted) {
-        const backgroundAvailable = await Location.isBackgroundLocationAvailableAsync();
-        if (backgroundAvailable) {
-          const background = await Location.getBackgroundPermissionsAsync();
-          if (background.granted) {
-            nextSummary.backgroundLocation = true;
-          } else {
-            await showBackgroundLocationIntro();
-            const backgroundResult = await Location.requestBackgroundPermissionsAsync();
-            nextSummary.backgroundLocation = backgroundResult.granted;
-
-            if (!backgroundResult.granted) {
-              showSettingsAlert(
-                'Background location helps live monitoring',
-                'NexGO Admin uses background location during live operations monitoring so dispatcher context stays accurate if you lock your phone or switch apps. Please allow background location in settings.'
-              );
-            }
-          }
-        } else {
-          nextSummary.backgroundLocation = false;
-        }
-      } else {
-        nextSummary.backgroundLocation = false;
-      }
-
-      const media = await MediaLibrary.getPermissionsAsync();
-      const mediaResult = media.granted
-        ? media
-        : await MediaLibrary.requestPermissionsAsync(false);
-      nextSummary.mediaLibrary = mediaResult.granted;
-
-      if (!mediaResult.granted) {
+      if (!mediaResult.granted && !mediaResult.canAskAgain) {
         showSettingsAlert(
-          'Photo access needed',
-          'NexGO Admin needs photo access to upload admin profile images and promotion artwork. Please allow photo access in settings.'
-        );
-      }
-
-      const camera = await Camera.Camera.getCameraPermissionsAsync();
-      const cameraResult = camera.granted
-        ? camera
-        : await Camera.Camera.requestCameraPermissionsAsync();
-      nextSummary.camera = cameraResult.granted;
-
-      if (!cameraResult.granted) {
-        showSettingsAlert(
-          'Camera permission needed',
-          'NexGO Admin needs camera access when capturing profile or promotion images inside the app. Please allow camera access in settings.'
+          'Photo access is needed',
+          'NexGO Admin needs photo access so you can select admin profile images and promotion artwork. Please enable Photos permission in settings.'
         );
       }
 
       setSummary(nextSummary);
-    } catch (error) {
-      console.warn('[Permissions] Unable to request runtime permissions:', error);
-      showSettingsAlert(
-        'Permissions need a fresh build',
-        'NexGO Admin could not open the permission prompt because the installed app does not include the latest native permission descriptions. Please rebuild and reinstall the app, then try again.'
-      );
     } finally {
       setChecking(false);
       hasStartedRef.current = false;
